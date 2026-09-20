@@ -255,7 +255,7 @@ Format your response strictly as JSON with two keys:
         import os
         import json
         GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={GEMINI_API_KEY}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
         
         async with httpx.AsyncClient() as client:
             resp = await client.post(
@@ -373,7 +373,7 @@ async def chat_with_agent(run_id: str, req: ChatRequest):
         import httpx
         import os
         GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={GEMINI_API_KEY}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
         payload = {
             "contents": [{"parts": [{"text": prompt}]}]
         }
