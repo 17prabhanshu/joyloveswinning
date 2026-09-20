@@ -383,7 +383,7 @@ async def chat_with_agent(run_id: str, req: ChatRequest):
             if resp.status_code == 200:
                 data = resp.json()
                 text = data["candidates"][0]["content"]["parts"][0]["text"]
-                return {"response": f"[Gemini Agent] {text.strip()}"}
+                return {"response": f"[Agent] {text.strip()}"}
             else:
                 return {"response": f"[Agent] I tried to think, but my cognitive engine returned an error: {resp.text}"}
     except Exception as e:
