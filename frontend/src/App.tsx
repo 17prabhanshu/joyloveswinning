@@ -17,7 +17,11 @@ function App() {
   const handleStartRun = () => {
     // In a real implementation, we would POST the files/code here.
     // For the hackathon, we just start the demo run API.
-    fetch('/api/runs', { method: 'POST' })
+    fetch('/api/runs', { 
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}) // Send empty JSON so FastAPI parses CreateRunRequest defaults
+    })
       .then((res) => res.json())
       .then((data) => {
         if (data.run_id) {
