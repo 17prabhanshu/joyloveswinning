@@ -20,8 +20,8 @@ function App() {
     fetch('/api/runs', { method: 'POST' })
       .then((res) => res.json())
       .then((data) => {
-        if (data.id) {
-          setRunId(data.id);
+        if (data.run_id) {
+          setRunId(data.run_id);
         }
       })
       .catch((err) => console.error('Failed to start run', err));
