@@ -31,33 +31,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message
 
 # ── App ───────────────────────────────────────────────────────
 
-async def call_gemini(prompt: str) -> httpx.Response:
-    import httpx
-    import os
-    import asyncio
-    GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
-    
-    models = ["gemini-3.6-flash", "gemini-1.5-flash", "gemini-2.0-flash-exp"]
-    
-    async with httpx.AsyncClient() as client:
-        resp = None
-        for model in models:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
-            for attempt in range(2):
-                try:
-                    resp = await client.post(url, json=payload, timeout=180.0)
-                    if resp.status_code == 200:
-                        return resp
-                    elif resp.status_code == 503:
-                        await asyncio.sleep(1)
-                        continue
-                    else:
-                        break  # try next model
-                except Exception:
-                    break  # try next model
-        return resp
-
+from ps3_agent.api.llm_gateway import gateway as llm_gateway
 
 app = FastAPI(title="JOY Autonomous Firmware Red-Team Agent", version="1.0.0")
 app.add_middleware(
@@ -281,7 +255,7 @@ Format your response strictly as JSON with two keys:
     
     try:
         import json
-        resp = await call_gemini(prompt)
+        resp = await llm_gateway.generate_content(prompt)
         
         if resp.status_code == 200:
             text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
@@ -390,7 +364,7 @@ Suggested Fix to Apply:
 
 Return ONLY the complete, fully updated C code. Do not include any explanations. Do not wrap it in ```c markdown blocks. Just return the raw C code so it can be saved directly to a file.
 """
-        resp = await call_gemini(prompt)
+        resp = await llm_gateway.generate_content(prompt)
         
         if resp.status_code == 200:
             data = resp.json()
