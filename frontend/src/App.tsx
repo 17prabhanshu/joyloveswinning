@@ -16,13 +16,13 @@ function App() {
   const [runId, setRunId] = useState<string | null>(null);
   const [runStatus, setRunStatus] = useState<any>(null);
 
-  const handleStartRun = (_files: File[], code: string, _resc: File | null) => {
+  const handleStartRun = (_files: File[], code: string, _resc: File | null, fastMode: boolean = false) => {
     // In a real implementation, we would POST the files/code here.
     // For the hackathon, we just start the demo run API.
     fetch('/api/runs', { 
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: code })
+      body: JSON.stringify({ code: code, fast_mode: fastMode })
     })
       .then((res) => res.json())
       .then((data) => {

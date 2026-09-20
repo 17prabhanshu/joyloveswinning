@@ -38,7 +38,7 @@ class LLMGateway:
         self.semaphore = asyncio.Semaphore(max_concurrency)
         self.replay_mode = replay_mode
         self.api_key = os.environ.get("GEMINI_API_KEY", "")
-        self.fallback_chain = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-2.0-flash-exp"]
+        self.fallback_chain = ["gemini-3.7-flash", "gemini-3.8-flash", "gemini-3.5-flash"]
         
     def _hash_prompt(self, model: str, prompt: str) -> str:
         data = f"{model}::{prompt}".encode("utf-8")
@@ -119,16 +119,8 @@ class LLMGateway:
                     resp = await client.post(url, json=payload, timeout=180.0)
                     
                     if resp.status_code == 429:
-                        # Extract Retry-After if present, otherwise exponential backoff with jitter
-                        retry_after = resp.headers.get("Retry-After")
-                        if retry_after and retry_after.isdigit():
-                            delay = int(retry_after)
-                        else:
-                            delay = base_delay * (2 ** attempt) + random.uniform(0.1, 0.5)
-                            
-                        logger.warning(f"[{model}] 429 Rate Limit. Backing off for {delay:.2f}s (Attempt {attempt+1}/{max_retries})")
-                        await asyncio.sleep(delay)
-                        continue
+                        logger.warning(f"[{model}] 429 Rate Limit. Instantly falling back to next model.")
+                        return resp
                         
                     return resp
                     

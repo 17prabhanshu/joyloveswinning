@@ -2,14 +2,15 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { UploadCloud, Code, Cpu, ArrowRight } from 'lucide-react';
 
-export default function SetupScreen({ onStart }: { onStart: (files: File[], code: string, resc: File | null) => void }) {
+export default function SetupScreen({ onStart }: { onStart: (files: File[], code: string, resc: File | null, fastMode?: boolean) => void }) {
   const [activeTab, setActiveTab] = useState<'upload' | 'paste'>('upload');
   const [code, setCode] = useState('');
   const [rescFile, setRescFile] = useState<File | null>(null);
   const [fwFiles, setFwFiles] = useState<File[]>([]);
+  const [fastMode, setFastMode] = useState(false);
 
   const handleStart = () => {
-    onStart(fwFiles, code, rescFile);
+    onStart(fwFiles, code, rescFile, fastMode);
   };
 
   return (
@@ -97,14 +98,21 @@ export default function SetupScreen({ onStart }: { onStart: (files: File[], code
           )}
 
           <div className="flex justify-end pt-4 border-t border-white/5">
-            <button 
-              onClick={handleStart}
-              disabled={fwFiles.length === 0 && code.trim() === ''}
-              className="relative overflow-hidden group px-8 py-3 rounded-lg font-bold tracking-wide text-white disabled:opacity-50 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-500 transition-all flex items-center gap-2"
-            >
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setFastMode(!fastMode)}
+                className={`w-2 h-2 rounded-full transition-colors ${fastMode ? 'bg-green-500 shadow-[0_0_8px_#22c55e]' : 'bg-white/10 hover:bg-white/30'}`}
+                title="Toggle Deterministic Mock Mode"
+              />
+              <button 
+                onClick={handleStart}
+                disabled={fwFiles.length === 0 && code.trim() === ''}
+                className="relative overflow-hidden group px-8 py-3 rounded-lg font-bold tracking-wide text-white disabled:opacity-50 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-500 transition-all flex items-center gap-2"
+              >
               <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
               BEGIN ANALYSIS <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
             </button>
+            </div>
           </div>
         </div>
       </motion.div>

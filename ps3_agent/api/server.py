@@ -62,6 +62,7 @@ class CreateRunRequest(BaseModel):
     firmware_path: Optional[str] = None
     code: Optional[str] = None
     max_tests: int = 30
+    fast_mode: bool = False
 
 
 # ── Health ────────────────────────────────────────────────────
@@ -125,6 +126,7 @@ async def create_run(req: CreateRunRequest, background_tasks: BackgroundTasks):
         project=project,
         firmware_path=firmware_path,
         max_tests=req.max_tests,
+        fast_mode=req.fast_mode,
         on_event=on_event,
     )
 
