@@ -341,6 +341,63 @@ async def stop_run(run_id: str):
     return {"status": "stop_requested"}
 
 
+class PatchRequest(BaseModel):
+    fix_snippet: str
+
+@app.post("/api/runs/{run_id}/patch")
+async def patch_firmware(run_id: str, req: PatchRequest):
+    if run_id not in active_runs:
+        raise HTTPException(404, "Run not found")
+    
+    agent = active_runs[run_id]["agent"]
+    firmware_path = agent.firmware_path
+    
+    try:
+        source_code = Path(firmware_path).read_text(encoding="utf-8")
+        
+        prompt = f"""
+You are an expert C programmer. You are given the complete original C firmware code and a small suggested patch/fix snippet.
+Your task is to apply the fix to the original code.
+
+Original Code:
+```c
+{source_code}
+```
+
+Suggested Fix to Apply:
+```c
+{req.fix_snippet}
+```
+
+Return ONLY the complete, fully updated C code. Do not include any explanations. Do not wrap it in ```c markdown blocks. Just return the raw C code so it can be saved directly to a file.
+"""
+        import httpx
+        import os
+        GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+        
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                url, 
+                json={"contents": [{"parts": [{"text": prompt}]}]}, 
+                timeout=15.0
+            )
+            
+            if resp.status_code == 200:
+                data = resp.json()
+                patched_code = data["candidates"][0]["content"]["parts"][0]["text"]
+                # Clean markdown blocks if Gemini stubbornly includes them
+                patched_code = patched_code.replace("```c", "").replace("```", "").strip()
+                
+                # Save the patched code back to the file
+                Path(firmware_path).write_text(patched_code, encoding="utf-8")
+                return {"status": "success", "message": "Firmware patched successfully."}
+            else:
+                raise HTTPException(500, f"Failed to generate patch: {resp.text}")
+    except Exception as e:
+        raise HTTPException(500, f"Patch error: {str(e)}")
+
+
 class ChatRequest(BaseModel):
     message: str
 

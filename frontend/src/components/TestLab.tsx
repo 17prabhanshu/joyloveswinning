@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Code2, BrainCircuit } from 'lucide-react';
+import { X, Code2, BrainCircuit, Wrench, Check } from 'lucide-react';
 
 export default function TestLab({ runId }: { runId: string | null }) {
   const [tests, setTests] = useState<any[]>([]);
   const [selectedTest, setSelectedTest] = useState<any | null>(null);
   const [analysis, setAnalysis] = useState<any | null>(null);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+  const [patching, setPatching] = useState(false);
+  const [patchSuccess, setPatchSuccess] = useState(false);
 
   useEffect(() => {
     if (!runId) return;
@@ -25,6 +27,8 @@ export default function TestLab({ runId }: { runId: string | null }) {
     if (test.status === 'FAIL') {
       setLoadingAnalysis(true);
       setAnalysis(null);
+      setPatching(false);
+      setPatchSuccess(false);
       fetch(`/api/runs/${runId}/tests/${test.test_id}/analysis`)
         .then(res => res.json())
         .then(data => {
@@ -36,6 +40,23 @@ export default function TestLab({ runId }: { runId: string | null }) {
           setLoadingAnalysis(false);
         });
     }
+  };
+
+  const handlePatch = async () => {
+    if (!analysis?.suggested_fix) return;
+    setPatching(true);
+    try {
+      const res = await fetch(`/api/runs/${runId}/patch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fix_snippet: analysis.suggested_fix })
+      });
+      if (res.ok) setPatchSuccess(true);
+      else console.error("Patch failed");
+    } catch (e) {
+      console.error(e);
+    }
+    setPatching(false);
   };
 
   return (
@@ -209,9 +230,35 @@ export default function TestLab({ runId }: { runId: string | null }) {
                         </div>
                         
                         <div>
-                          <div className="flex items-center gap-2 text-emerald-400 font-bold uppercase tracking-widest text-xs mb-3">
-                            <Code2 size={16} />
-                            Suggested Remediation Patch
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2 text-emerald-400 font-bold uppercase tracking-widest text-xs">
+                              <Code2 size={16} />
+                              Suggested Remediation Patch
+                            </div>
+                            <button 
+                              onClick={handlePatch}
+                              disabled={patching || patchSuccess}
+                              className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${
+                                patchSuccess 
+                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50' 
+                                  : 'bg-emerald-500 text-black hover:bg-emerald-400 hover:scale-105 shadow-[0_0_15px_rgba(16,185,129,0.4)]'
+                              }`}
+                            >
+                              {patchSuccess ? (
+                                <>
+                                  <Check size={14} /> Patch Applied
+                                </>
+                              ) : patching ? (
+                                <>
+                                  <div className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin"></div>
+                                  Patching...
+                                </>
+                              ) : (
+                                <>
+                                  <Wrench size={14} /> Auto-Patch Codebase
+                                </>
+                              )}
+                            </button>
                           </div>
                           <div className="relative group">
                             <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500/20 to-blue-500/20 rounded-xl blur opacity-30 group-hover:opacity-60 transition duration-500"></div>
