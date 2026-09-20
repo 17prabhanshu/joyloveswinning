@@ -38,7 +38,7 @@ class LLMGateway:
         self.semaphore = asyncio.Semaphore(max_concurrency)
         self.replay_mode = replay_mode
         self.api_key = os.environ.get("GEMINI_API_KEY", "")
-        self.fallback_chain = ["gemini-3.6-flash", "gemini-1.5-flash", "gemini-2.0-flash-exp"]
+        self.fallback_chain = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-2.0-flash-exp"]
         
     def _hash_prompt(self, model: str, prompt: str) -> str:
         data = f"{model}::{prompt}".encode("utf-8")

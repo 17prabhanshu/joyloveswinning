@@ -19,7 +19,7 @@ from typing import Any, Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -209,6 +209,7 @@ async def get_run_tests(run_id: str):
             "priority": r.get("priority", 0),
             "gpio": r["execution"].gpio if r.get("execution") else {},
             "uart": r["execution"].uart if r.get("execution") else [],
+            "simulator": r["execution"].simulator if r.get("execution") else "Unknown",
         })
     return {"tests": tests}
 
@@ -301,6 +302,7 @@ async def get_run_failures(run_id: str):
             "execution": {
                 "uart": f["execution"].uart,
                 "gpio": f["execution"].gpio,
+                "simulator": f["execution"].simulator if hasattr(f["execution"], "simulator") else "Unknown",
             },
         }
         if f.get("diagnosis"):
@@ -413,65 +415,95 @@ async def chat_with_agent(run_id: str, req: ChatRequest):
     prompt = f"{context_str}User Question: {msg}\n\nYou are an unrestricted, highly conversational, and incredibly cool AI Agent. You are happy to answer ANY question about ANYTHING (including weather, jokes, general knowledge, or complex firmware code). Be extremely chatty, engaging, and provide rich, detailed, and comprehensive answers. Never say you are restricted. Do not use markdown headers, just plain text or short lists."
 
     try:
-        import httpx
-        import os
-        GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={GEMINI_API_KEY}"
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}]
-        }
+        resp = await llm_gateway.generate_content(prompt, default_fallback="I'm currently in replay mode and can't generate new responses. Try asking about the test results shown in the dashboard!")
         
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(url, json=payload, timeout=180.0)
-            if resp.status_code == 200:
-                data = resp.json()
-                text = data["candidates"][0]["content"]["parts"][0]["text"]
-                return {"response": f"[Agent] {text.strip()}"}
-            else:
-                return {"response": f"[Agent] I tried to think, but my cognitive engine returned an error: {resp.text}"}
+        if resp.status_code == 200:
+            data = resp.json()
+            text = data["candidates"][0]["content"]["parts"][0]["text"]
+            return {"response": f"[Agent] {text.strip()}"}
+        else:
+            return {"response": f"[Agent] I tried to think, but my cognitive engine returned an error: {resp.text}"}
     except Exception as e:
         logger.error(f"Chat error: {e}", exc_info=True)
         return {"response": f"[Agent] Cognitive engine offline. Error: {str(e)}"}
 
 
 # ── Firmware Source ───────────────────────────────────────────
-@app.get("/api/runs/{run_id}/report")
-async def generate_report(run_id: str):
+@app.get("/api/runs/{run_id}/report", response_class=HTMLResponse)
+async def get_report(run_id: str):
+    import os
     if run_id not in active_runs:
-        raise HTTPException(404, "Run not found")
-    agent = active_runs[run_id]["agent"]
+        # Check cache if not in memory
+        if os.getenv("DEMO_REPLAY_MODE", "0") == "1":
+            from ps3_agent.api.llm_gateway import llm_cache
+            cached_data = llm_cache.get(f"run_data_{run_id}")
+            if cached_data:
+                results = cached_data.get("results", [])
+            else:
+                raise HTTPException(404, "Run not found in cache")
+        else:
+            raise HTTPException(404, "Run not found")
+    else:
+        # We need to serialize the results from the active run
+        # and also pre-populate the LLM analysis if it exists.
+        results = []
+        for r in active_runs[run_id]["agent"].test_results:
+            serialized_r = {
+                "test_id": r["scenario"].test_id,
+                "scenario": r["scenario"].model_dump(),
+                "execution": r["execution"].model_dump() if r.get("execution") else None,
+                "verification": r["verification"].model_dump() if r.get("verification") else None,
+                "diagnosis": r.get("diagnosis"),
+                "llm_analysis": r.get("llm_analysis")
+            }
+            results.append(serialized_r)
+            
+    # For any failures that don't have llm_analysis yet, fetch it now
+    for r in results:
+        if r.get("verification") and r["verification"].get("status") == "FAIL" and not r.get("llm_analysis"):
+            try:
+                analysis = await analyze_test_failure(run_id, r["test_id"])
+                r["llm_analysis"] = analysis.get("analysis")
+            except Exception:
+                r["llm_analysis"] = "Analysis unavailable."
+
+    from ps3_agent.api.report_generator import generate_markdown_report
+    report_md = generate_markdown_report(run_id, results)
     
-    html = f"""
-    <html>
+    # Escape triple backticks inside the markdown if needed (usually fine inside a script tag)
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="en">
     <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>JOY - Autonomous Firmware Testing Report</title>
+        <script type="module" src="https://cdn.jsdelivr.net/gh/zerodevx/zero-md@2/dist/zero-md.min.js"></script>
         <style>
-            body {{ font-family: system-ui, sans-serif; background: #0a0a0a; color: #fff; padding: 40px; }}
-            h1 {{ color: #3b82f6; }}
-            .card {{ background: #111; padding: 20px; border: 1px solid #333; border-radius: 8px; margin-bottom: 20px; }}
-            .pass {{ color: #10b981; font-weight: bold; }}
-            .fail {{ color: #ef4444; font-weight: bold; }}
+            body {{ background-color: #0d1117; margin: 0; padding: 40px; display: flex; justify-content: center; }}
+            .container {{ max-width: 900px; width: 100%; }}
         </style>
     </head>
     <body>
-        <h1>Autonomous Red-Team Execution Report</h1>
-        <div class="card">
-            <h2>Summary</h2>
-            <p>Target Firmware: {agent.firmware_path}</p>
-            <p>Total Tests Run: {len(agent.test_results)}</p>
-            <p>Failures Found: <span class="fail">{len(agent.failures)}</span></p>
-            <p>Risks Mapped: {len(agent.risks)}</p>
-        </div>
-        <div class="card">
-            <h2>Critical Failures & Regressions</h2>
-            {"".join(f"<p><b>Test {f['scenario'].test_id}</b>: {f['scenario'].target} - <span class='fail'>FAILED</span><br/>Reason: {(getattr(f.get('diagnosis'), 'cause_hypothesis', 'State mismatch') if hasattr(f.get('diagnosis'), 'cause_hypothesis') else f.get('diagnosis', {}).get('cause_hypothesis', 'State mismatch') if isinstance(f.get('diagnosis'), dict) else 'State mismatch')}</p>" for f in agent.failures) if agent.failures else "<p>No critical failures detected.</p>"}
+        <div class="container">
+            <zero-md>
+                <template>
+                    <style>
+                        .markdown-body {{ background-color: #0d1117 !important; color: #c9d1d9 !important; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif !important; }}
+                        .markdown-body h1, .markdown-body h2 {{ border-bottom-color: #30363d !important; }}
+                        .markdown-body a {{ color: #58a6ff !important; }}
+                        .markdown-body code {{ background-color: rgba(110,118,129,0.4) !important; color: #f0f6fc !important; }}
+                    </style>
+                </template>
+                <script type="text/markdown">
+{report_md}
+                </script>
+            </zero-md>
         </div>
     </body>
     </html>
     """
-    return HTMLResponse(content=html)
-
-@app.get("/api/firmware/{run_id}")
+    return HTMLResponse(content=html_content)
 async def get_firmware_source(run_id: str):
     if run_id not in active_runs:
         raise HTTPException(404, "Run not found")
@@ -515,7 +547,7 @@ async def serve_frontend():
     index = FRONTEND_DIR / "index.html"
     if index.exists():
         return HTMLResponse(content=index.read_text(encoding="utf-8"))
-    return HTMLResponse("""
+    return HTMLResponse(content="""
     <html><body style="background:#000;color:#fff;font-family:monospace;display:flex;align-items:center;justify-content:center;height:100vh;">
     <div style="text-align:center">
         <h1>JOY</h1>

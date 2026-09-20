@@ -12,14 +12,21 @@ export default function TestLab({ runId }: { runId: string | null }) {
 
   useEffect(() => {
     if (!runId) return;
-    fetch(`/api/runs/${runId}/tests`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.tests && Array.isArray(data.tests)) {
-          setTests(data.tests);
-        }
-      })
-      .catch(console.error);
+    
+    const fetchTests = () => {
+      fetch(`/api/runs/${runId}/tests`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.tests && Array.isArray(data.tests)) {
+            setTests(data.tests);
+          }
+        })
+        .catch(console.error);
+    };
+    
+    fetchTests();
+    const interval = setInterval(fetchTests, 2000);
+    return () => clearInterval(interval);
   }, [runId]);
 
   const handleTestClick = (test: any) => {
@@ -94,8 +101,15 @@ export default function TestLab({ runId }: { runId: string | null }) {
                     }`}>
                       {test.status}
                     </span>
+                    {test.simulator && test.simulator !== "Unknown" && (
+                      <span className="ml-2 px-2 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase bg-indigo-900/40 text-indigo-300 border border-indigo-500/30">
+                        {test.simulator}
+                      </span>
+                    )}
                   </td>
-                  <td className="p-4 font-mono text-blue-300">{test.target}</td>
+                  <td className="p-4 font-mono text-blue-300">
+                    {(test.target || 'Unknown').replace(/tmp[^:]+\.c:/, 'fan_controller.c:')}
+                  </td>
                   <td className="p-4">
                     <span className="text-xs bg-[#1a1a1a] text-purple-400 px-2 py-1 rounded border border-purple-500/20 font-mono">
                       {test.category}

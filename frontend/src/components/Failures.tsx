@@ -7,14 +7,21 @@ export default function Failures({ runId }: { runId: string | null }) {
 
   useEffect(() => {
     if (!runId) return;
-    fetch(`/api/runs/${runId}/failures`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.failures && Array.isArray(data.failures)) {
-          setFailures(data.failures);
-        }
-      })
-      .catch(console.error);
+    
+    const fetchFailures = () => {
+      fetch(`/api/runs/${runId}/failures`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.failures && Array.isArray(data.failures)) {
+            setFailures(data.failures);
+          }
+        })
+        .catch(console.error);
+    };
+    
+    fetchFailures();
+    const interval = setInterval(fetchFailures, 2000);
+    return () => clearInterval(interval);
   }, [runId]);
 
   return (
@@ -49,7 +56,14 @@ export default function Failures({ runId }: { runId: string | null }) {
                   <h3 className="font-bold text-xl font-mono text-white tracking-tight">{f.test_id || `FAILURE-${i+1}`}</h3>
                   <div className="flex items-center gap-2 text-xs text-red-400/80 mt-2 bg-red-950/30 px-3 py-1 rounded-full border border-red-500/10 inline-flex">
                     <MapPin size={12} />
-                    <span className="font-mono tracking-wider">{f.diagnosis?.source_location || f.scenario?.target || 'Unknown firmware location'}</span>
+                    <span className="font-mono tracking-wider">
+                      {(f.diagnosis?.source_location || f.scenario?.target || 'Unknown firmware location').replace(/tmp[^:]+\.c:/, 'fan_controller.c:')}
+                    </span>
+                    {f.execution?.simulator && (
+                      <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-indigo-900/40 text-indigo-300 border border-indigo-500/30">
+                        {f.execution.simulator}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="px-3 py-1.5 bg-black/60 border border-red-500/30 rounded-lg text-xs font-bold text-red-400 flex items-center gap-2 shadow-inner">

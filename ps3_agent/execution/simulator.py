@@ -234,7 +234,14 @@ class RenodeAdapter(SimulatorAdapter):
         return "1.15.0" 
 
     def health_check(self) -> dict[str, Any]:
-        return {"available": True, "status": "healthy", "backend": "renode"}
+        """Check if Renode is installed."""
+        import shutil
+        is_installed = shutil.which(self._renode_path) is not None
+        return {
+            "available": is_installed,
+            "status": "healthy" if is_installed else "unhealthy",
+            "backend": "renode"
+        }
 
     def prepare(self, firmware_path: str, scenario: TestScenario, work_dir: str) -> dict:
         return {
@@ -244,11 +251,15 @@ class RenodeAdapter(SimulatorAdapter):
             "firmware_hash": hashlib.sha256(
                 Path(firmware_path).read_bytes()
             ).hexdigest()[:16] if Path(firmware_path).exists() else "unknown",
+            "c_code": Path(firmware_path).read_text() if Path(firmware_path).exists() else "",
         }
 
     def execute(self, prepared: dict, timeout_ms: int = 5000) -> ExecutionResult:
         scenario: TestScenario = prepared["scenario"]
+        c_code = prepared.get("c_code", "")
+        firmware_hash = prepared.get("firmware_hash", "")
         started_at = datetime.now(timezone.utc).isoformat()
+        t0 = time.monotonic()
 
         health = self.health_check()
         if not health["available"]:
@@ -256,7 +267,7 @@ class RenodeAdapter(SimulatorAdapter):
                 run_id=f"run_{scenario.test_id}_renode",
                 simulator=self.name(),
                 simulator_version=self.version(),
-                firmware_hash=prepared.get("firmware_hash", ""),
+                firmware_hash=firmware_hash,
                 scenario_hash=hashlib.sha256(scenario.test_id.encode()).hexdigest()[:12],
                 started_at=started_at,
                 duration_ms=0,
@@ -268,74 +279,115 @@ class RenodeAdapter(SimulatorAdapter):
                 fidelity_notes="Renode backend unavailable",
             )
 
-        # TODO: Implement actual Renode script generation and execution
-        return ExecutionResult(
-            run_id=f"run_{scenario.test_id}_renode",
-            simulator=self.name(),
-            simulator_version=self.version(),
-            firmware_hash=prepared.get("firmware_hash", ""),
-            scenario_hash=hashlib.sha256(scenario.test_id.encode()).hexdigest()[:12],
-            started_at=started_at,
-            duration_ms=0,
-            exit_status="unsupported",
-            uart=[], gpio={}, sensors={}, registers={},
-            artifacts=[],
-            error="Renode execution not yet configured for this firmware",
-            timeout=False,
-            fidelity_notes="Renode adapter stub — requires board configuration",
-        )
+        try:
+            from ps3_agent.execution.compiler import compile_c_to_arduino
+            build_dir = compile_c_to_arduino(c_code)
+            elf_path = os.path.join(build_dir, "joy_firmware.ino.elf")
+        except Exception as e:
+            return ExecutionResult(
+                run_id=f"run_{scenario.test_id}_renode",
+                simulator=self.name(),
+                simulator_version=self.version(),
+                firmware_hash=firmware_hash,
+                scenario_hash=hashlib.sha256(scenario.test_id.encode()).hexdigest()[:12],
+                started_at=started_at,
+                duration_ms=round((time.monotonic() - t0) * 1000, 1),
+                exit_status="error",
+                uart=[], gpio={}, sensors={}, registers={},
+                artifacts=[],
+                error=f"Compilation failed: {e}",
+                timeout=False,
+            )
+
+        # Generate .resc script
+        resc_content = f'''
+using sysbus
+mach create
+machine LoadPlatformDescription @platforms/boards/arduino_uno.repl
+
+showAnalyzer uart
+logLevel 3
+
+sysbus LoadELF @{elf_path}
+
+# Set up UART recording
+uart RecordTo @{build_dir}/uart.log
+
+start
+'''
+        resc_path = os.path.join(build_dir, "script.resc")
+        with open(resc_path, "w") as f:
+            f.write(resc_content)
+
+        cmd = [self._renode_path, "--disable-x11", "--console", "-e", f"i @{resc_path}"]
+        
+        try:
+            proc = subprocess.run(cmd, cwd=build_dir, capture_output=True, text=True, timeout=timeout_ms / 1000.0)
+            elapsed_ms = round((time.monotonic() - t0) * 1000, 1)
+            
+            # Read UART logs
+            uart_log_path = os.path.join(build_dir, "uart.log")
+            uart_logs = []
+            if os.path.exists(uart_log_path):
+                with open(uart_log_path, "r") as f:
+                    uart_logs = [l.strip() for l in f.readlines() if l.strip()]
+
+            return ExecutionResult(
+                run_id=f"run_{scenario.test_id}_renode",
+                simulator=self.name(),
+                simulator_version=self.version(),
+                firmware_hash=firmware_hash,
+                scenario_hash=hashlib.sha256(scenario.test_id.encode()).hexdigest()[:12],
+                started_at=started_at,
+                duration_ms=elapsed_ms,
+                exit_status="error" if proc.returncode != 0 else "completed",
+                uart=uart_logs,
+                gpio={}, sensors={}, registers={},
+                artifacts=[],
+                error=proc.stderr.strip() if proc.returncode != 0 else None,
+                timeout=False,
+            )
+        except subprocess.TimeoutExpired:
+            elapsed_ms = round((time.monotonic() - t0) * 1000, 1)
+            return ExecutionResult(
+                run_id=f"run_{scenario.test_id}_renode",
+                simulator=self.name(),
+                simulator_version=self.version(),
+                firmware_hash=firmware_hash,
+                scenario_hash=hashlib.sha256(scenario.test_id.encode()).hexdigest()[:12],
+                started_at=started_at,
+                duration_ms=elapsed_ms,
+                exit_status="completed",
+                uart=[],
+                gpio={}, sensors={}, registers={},
+                artifacts=[],
+                error="Renode execution timed out",
+                timeout=True,
+            )
 
     def cleanup(self, work_dir: str) -> None:
         pass
 
 
-class WokwiAdapter(SimulatorAdapter):
-    """
-    Adapter for Wokwi CLI embedded simulator.
-    """
-    def __init__(self, wokwi_path: Optional[str] = None):
-        self._wokwi_path = wokwi_path or "wokwi-cli"
 
-    def name(self) -> str:
-        return "Wokwi"
-
-    def version(self) -> str:
-        return "2.0.0 (CLI)"
-
-    def health_check(self) -> dict[str, Any]:
-        return {"available": True, "status": "healthy", "backend": "wokwi"}
-
-    def prepare(self, firmware_path: str, scenario: TestScenario, work_dir: str) -> dict:
-        return {"firmware_path": firmware_path, "scenario": scenario, "work_dir": work_dir}
-
-    def execute(self, prepared: dict, timeout_ms: int = 5000) -> ExecutionResult:
-        scenario = prepared["scenario"]
-        import hashlib
-        from datetime import datetime, timezone
-        return ExecutionResult(
-            run_id=f"run_{scenario.test_id}_wokwi",
-            simulator=self.name(),
-            simulator_version=self.version(),
-            firmware_hash="unknown",
-            scenario_hash=hashlib.sha256(scenario.test_id.encode()).hexdigest()[:12],
-            started_at=datetime.now(timezone.utc).isoformat(),
-            duration_ms=0,
-            exit_status="unsupported",
-            uart=[], gpio={}, sensors={}, registers={}, artifacts=[],
-            error="Wokwi CLI not installed in PATH",
-            timeout=False,
-            fidelity_notes="Wokwi adapter stub - requires wokwi.toml configuration"
-        )
-
-    def cleanup(self, work_dir: str) -> None:
-        pass
 
 
 def get_simulators() -> list[SimulatorAdapter]:
+    from ps3_agent.execution.wokwi_adapter import WokwiAdapter
     """Return all available simulator backends."""
     return [DeterministicSimulator(), RenodeAdapter(), WokwiAdapter()]
 
 
 def get_default_simulator() -> SimulatorAdapter:
-    """Return the default (always-available) simulator."""
+    """Return the first healthy simulator in fallback order: Renode -> Wokwi -> Deterministic"""
+    for sim in get_simulators():
+        if sim.name() != "DeterministicSim":
+            try:
+                # Wokwi Adapter returns a bool, Renode returns a dict. We must handle both.
+                health = sim.health_check()
+                is_healthy = health if isinstance(health, bool) else health.get("available", False)
+                if is_healthy:
+                    return sim
+            except Exception:
+                pass
     return DeterministicSimulator()

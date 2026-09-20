@@ -3,6 +3,8 @@
 ps3-agent CLI — Command-line interface for the Autonomous Firmware Red-Team Agent.
 """
 from __future__ import annotations
+from dotenv import load_dotenv
+load_dotenv()
 
 import argparse
 import hashlib
