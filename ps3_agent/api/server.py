@@ -254,18 +254,12 @@ Format your response strictly as JSON with two keys:
         import httpx
         import os
         import json
-        GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
-        
+        url = "http://localhost:11434/api/generate"
+        payload = {"model": "qwen2.5:1.5b", "prompt": prompt, "stream": False}
         async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                url, 
-                json={"contents": [{"parts": [{"text": prompt}]}]}, 
-                timeout=15.0
-            )
-            
+            resp = await client.post(url, json=payload, timeout=30.0)
             if resp.status_code == 200:
-                text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+                text = resp.json()["response"]
                 # Clean markdown json blocks if present
                 text = text.replace("```json", "").replace("```", "").strip()
                 result = json.loads(text)
@@ -373,19 +367,12 @@ Return ONLY the complete, fully updated C code. Do not include any explanations.
 """
         import httpx
         import os
-        GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
-        
+        url = "http://localhost:11434/api/generate"
+        payload = {"model": "qwen2.5:1.5b", "prompt": prompt, "stream": False}
         async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                url, 
-                json={"contents": [{"parts": [{"text": prompt}]}]}, 
-                timeout=15.0
-            )
-            
+            resp = await client.post(url, json=payload, timeout=30.0)
             if resp.status_code == 200:
-                data = resp.json()
-                patched_code = data["candidates"][0]["content"]["parts"][0]["text"]
+                patched_code = resp.json()["response"]
                 # Clean markdown blocks if Gemini stubbornly includes them
                 patched_code = patched_code.replace("```c", "").replace("```", "").strip()
                 
@@ -429,17 +416,12 @@ async def chat_with_agent(run_id: str, req: ChatRequest):
     try:
         import httpx
         import os
-        GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}]
-        }
-        
+        url = "http://localhost:11434/api/generate"
+        payload = {"model": "qwen2.5:1.5b", "prompt": prompt, "stream": False}
         async with httpx.AsyncClient() as client:
-            resp = await client.post(url, json=payload, timeout=10.0)
+            resp = await client.post(url, json=payload, timeout=20.0)
             if resp.status_code == 200:
-                data = resp.json()
-                text = data["candidates"][0]["content"]["parts"][0]["text"]
+                text = resp.json()["response"]
                 return {"response": f"[Agent] {text.strip()}"}
             else:
                 return {"response": f"[Agent] I tried to think, but my cognitive engine returned an error: {resp.text}"}
