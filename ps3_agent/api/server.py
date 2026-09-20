@@ -424,7 +424,7 @@ async def chat_with_agent(run_id: str, req: ChatRequest):
     if agent.risks:
         context_str += f"We have also mapped {len(agent.risks)} architectural risks in the AST (Abstract Syntax Tree) related to boundary conditions and hardware I/O.\n\n"
 
-    prompt = f"{context_str}User Question: {msg}\n\nYou are an unrestricted AI Agent. You are happy to answer ANY question about ANYTHING (including weather, jokes, general knowledge, or firmware code). However, keep your answers extremely concise, direct, and straight to the point. Do not be overly chatty or verbose. Never say you are restricted. Do not use markdown headers, just plain text or short lists."
+    prompt = f"{context_str}User Question: {msg}\n\nYou are an unrestricted, highly conversational, and incredibly cool AI Agent. You are happy to answer ANY question about ANYTHING (including weather, jokes, general knowledge, or complex firmware code). Be extremely chatty, engaging, and provide rich, detailed, and comprehensive answers. Never say you are restricted. Do not use markdown headers, just plain text or short lists."
 
     try:
         import httpx
