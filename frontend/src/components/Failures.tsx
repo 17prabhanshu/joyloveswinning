@@ -9,7 +9,9 @@ export default function Failures({ runId }: { runId: string | null }) {
     fetch(`/api/runs/${runId}/failures`)
       .then(res => res.json())
       .then(data => {
-        if (Array.isArray(data)) setFailures(data);
+        if (data.failures && Array.isArray(data.failures)) {
+          setFailures(data.failures);
+        }
       })
       .catch(console.error);
   }, [runId]);
