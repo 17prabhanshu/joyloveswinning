@@ -24,7 +24,9 @@ TRACES_DIR = PROJECT_ROOT / "artifacts" / "traces"
 BOARDS_DIR = PROJECT_ROOT / "hardware" / "boards"
 VIEWER_PATH = PROJECT_ROOT / "src" / "firmware_agent" / "reporting" / "viewer" / "rig_view.html"
 SCHEMAS_DIR = PROJECT_ROOT / "schemas"
-
+STATIC_DIR = PROJECT_ROOT / "src" / "firmware_agent" / "static"
+STATIC_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 def _get_capabilities(chip: str):
     """Return SimulatorCapabilities for a chip, importing locally to avoid circular deps."""
@@ -251,75 +253,138 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     border-color: var(--copper); border-style: solid;
   }
   .cal-frame::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
-  .cal-frame::after  { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+    content: ''; position: absolute; width: 12px; height: 12px; border: 2px solid var(--copper);
+  }
+  .cal-frame::before { top: -2px; left: -2px; border-right: none; border-bottom: none; }
+  .cal-frame::after { bottom: -2px; right: -2px; border-left: none; border-top: none; }
+  
+  /* Inner corner brackets */
+  .cal-bracket-tl { position: absolute; top: -2px; right: -2px; width: 12px; height: 12px; border-top: 2px solid var(--copper); border-right: 2px solid var(--copper); }
+  .cal-bracket-bl { position: absolute; bottom: -2px; left: -2px; width: 12px; height: 12px; border-bottom: 2px solid var(--copper); border-left: 2px solid var(--copper); }
 
   h1 {
-    font-family: 'Big Shoulders Display', sans-serif; font-weight: 800;
-    font-size: 28px; letter-spacing: 2px; text-transform: uppercase;
-    color: var(--phosphor); margin-bottom: 4px;
+    font-family: 'Big Shoulders Display', sans-serif;
+    font-size: 32px;
+    font-weight: 800;
+    margin: 0 0 4px;
+    text-transform: uppercase;
+    color: var(--silk);
+    letter-spacing: 1px;
   }
-  .subtitle { color: var(--silk-dim); font-size: 11px; margin-bottom: 20px; }
+  
+  .subtitle {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--phosphor);
+    letter-spacing: 2px;
+    margin-bottom: 30px;
+    text-transform: uppercase;
+  }
 
-  /* Sections */
   .section-title {
-    font-family: 'Big Shoulders Display', sans-serif; font-weight: 700;
-    font-size: 16px; letter-spacing: 1.5px; text-transform: uppercase;
-    color: var(--copper); margin: 24px 0 12px; padding-bottom: 4px;
+    font-family: 'Big Shoulders Display', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--copper);
+    margin: 30px 0 12px;
+    padding-bottom: 4px;
     border-bottom: 1px solid var(--copper-dim);
   }
 
   /* Run list */
   .run-table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .run-table th {
-    text-align: left; padding: 6px 10px; color: var(--silk-dim);
-    border-bottom: 1px solid var(--hair); font-weight: 500;
+    text-align: left; padding: 8px 10px; color: var(--silk-dim);
+    border-bottom: 1px solid var(--hair); font-weight: 600;
     font-family: 'Big Shoulders Display', sans-serif;
-    text-transform: uppercase; letter-spacing: 1px; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 1px; font-size: 13px;
   }
-  .run-table td { padding: 8px 10px; border-bottom: 1px solid var(--hair); }
-  .run-table tr:hover { background: var(--pcb-panel); }
+  .run-table td { padding: 10px 10px; border-bottom: 1px solid var(--hair); }
+  .run-table tr:hover { background: var(--pcb-panel-2); }
   .verdict-pass { color: var(--sig-green); font-weight: 600; }
   .verdict-fail { color: var(--sig-red); font-weight: 600; }
   .verdict-unavailable { color: var(--silk-dim); }
-  a { color: var(--phosphor); text-decoration: none; }
-  a:hover { text-decoration: underline; }
+  
+  a { color: var(--phosphor); text-decoration: none; border-bottom: 1px dotted var(--phosphor-dim); padding-bottom: 1px; }
+  a:hover { color: var(--silk); border-bottom-color: var(--silk); background: var(--phosphor-dim); }
+  
+  /* Action buttons logic-analyzer style */
+  .btn-action {
+    display: inline-block; padding: 4px 8px; 
+    background: transparent; border: 1px solid var(--phosphor-dim);
+    color: var(--phosphor); font-size: 11px; text-transform: uppercase;
+    cursor: pointer; border-radius: var(--radius); transition: all 0.2s;
+  }
+  .btn-action:hover {
+    background: var(--phosphor); color: var(--pcb-black); border-color: var(--phosphor);
+  }
 
   /* Board cards */
+  #board-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
   .board-card {
-    border: 1px solid var(--hair); padding: 12px 16px; margin-bottom: 8px;
-    position: relative;
+    border: 1px solid var(--copper-dim); padding: 12px 16px; 
+    position: relative; background: var(--pcb-black);
   }
+  /* Simulator unavailable state */
+  .board-card.no-sim {
+    background: repeating-linear-gradient(45deg, var(--pcb-black), var(--pcb-black) 10px, rgba(255,79,62,0.05) 10px, rgba(255,79,62,0.05) 20px);
+    border-color: rgba(255,79,62,0.3);
+  }
+  .board-card.no-sim .sim-status { color: var(--sig-red); }
+  .board-card.no-sim::before { border-color: var(--sig-red); }
+
   .board-card::before {
     content: ''; position: absolute; top: -1px; left: -1px;
-    width: 10px; height: 10px; border-top: 2px solid var(--copper);
+    width: 8px; height: 8px; border-top: 2px solid var(--copper);
     border-left: 2px solid var(--copper);
   }
-  .board-card .chip-name {
+  
+  .chip-name {
     font-family: 'Big Shoulders Display', sans-serif; font-weight: 700;
-    font-size: 14px; color: var(--phosphor); text-transform: uppercase;
+    font-size: 16px; color: var(--phosphor); text-transform: uppercase;
+    display: flex; align-items: center; justify-content: space-between;
   }
-  .board-card .periph-count { color: var(--silk-dim); font-size: 11px; }
-  .board-card .sim-status { font-size: 11px; margin-top: 4px; }
+  .chip-badge {
+    font-family: 'IBM Plex Mono', monospace; font-size: 9px; padding: 2px 4px;
+    background: var(--copper-dim); color: var(--silk); border-radius: 2px;
+  }
+  .periph-count { color: var(--silk-dim); font-size: 11px; margin-top: 4px; }
+  .sim-status { font-size: 11px; margin-top: 8px; padding-top: 8px; border-top: 1px dotted var(--hair); }
+  
   .sim-ok { color: var(--sig-green); }
-  .sim-err { color: var(--sig-red); }
 
   /* Circuit trace animation */
-  .trace-line {
-    stroke: var(--copper-dim); stroke-width: 2; fill: none;
+  .designer-container {
+    border: 1px solid var(--hair);
+    background: var(--pcb-black);
+    padding: 16px; margin-bottom: 24px; position: relative;
   }
-  .trace-pulse {
-    fill: var(--phosphor); filter: drop-shadow(0 0 4px var(--phosphor));
-  }
+  .trace-line { stroke: var(--copper-dim); stroke-width: 2; fill: none; }
+  .trace-pulse { fill: var(--phosphor); filter: drop-shadow(0 0 4px var(--phosphor)); }
   .led-indicator { transition: fill 0.3s, filter 0.3s; }
   .led-off { fill: #1a1a1a; filter: none; }
   .led-on  { fill: var(--sig-green); filter: drop-shadow(0 0 6px var(--sig-green)); }
+  .node-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; fill: var(--silk-dim); text-anchor: middle; }
+  .node-box { fill: var(--pcb-panel-2); stroke: var(--copper-dim); stroke-width: 1.5; }
 
   /* Transport bar */
   .transport {
     position: fixed; bottom: 0; left: 0; right: 0; height: 40px;
-    background: var(--pcb-panel); border-top: 1px solid var(--copper-dim);
+    background: var(--pcb-black); border-top: 1px solid var(--copper-dim);
     display: flex; align-items: center; padding: 0 20px;
     font-size: 11px; color: var(--silk-dim); z-index: 100;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.5);
+  }
+  .transport-btn {
+    background: none; border: 1px solid var(--hair); color: var(--silk);
+    font-family: 'IBM Plex Mono', monospace; padding: 4px 12px; margin-right: 8px;
+    cursor: pointer; border-radius: var(--radius);
+  }
+  .transport-btn:hover { background: var(--pcb-panel-2); border-color: var(--copper-dim); }
+  .transport .status-indicator {
+    display: flex; align-items: center; margin-left: auto;
   }
   .transport .status-dot {
     width: 8px; height: 8px; border-radius: 50%;
@@ -329,17 +394,37 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 </style>
 </head>
 <body>
+
 <div class="cal-frame">
+  <div class="cal-bracket-tl"></div>
+  <div class="cal-bracket-bl"></div>
+
   <h1>PS3 Firmware Agent</h1>
   <div class="subtitle">AUTONOMOUS EMBEDDED FIRMWARE TESTING PLATFORM</div>
 
-  <!-- Circuit Trace Animation -->
-  <svg id="circuit-anim" width="100%" height="50" viewBox="0 0 800 50" style="margin-bottom:16px;">
-    <path class="trace-line" d="M 0,25 L 200,25 L 220,10 L 280,10 L 300,25 L 500,25 L 520,40 L 580,40 L 600,25 L 780,25" />
-    <circle class="trace-pulse" id="pulse-dot" cx="0" cy="25" r="4" opacity="0" />
-    <circle class="led-indicator led-off" id="led-1" cx="300" cy="25" r="6" />
-    <circle class="led-indicator led-off" id="led-2" cx="600" cy="25" r="6" />
-  </svg>
+  <div class="section-title">Custom Board Designer <span style="color:var(--silk-dim); font-size:12px; font-weight:500;">(Live Preview)</span></div>
+  <div class="designer-container">
+    <svg id="circuit-anim" width="100%" height="80" viewBox="0 0 800 80">
+      <!-- Trace Routing -->
+      <path class="trace-line" d="M 160,40 L 300,40 L 320,20 L 400,20 L 420,40 L 640,40" />
+      
+      <!-- MCU Node -->
+      <rect class="node-box" x="80" y="20" width="80" height="40" rx="2" />
+      <text class="node-label" x="120" y="44" style="fill:var(--copper);">STM32</text>
+      
+      <!-- Peripheral Node 1 -->
+      <rect class="node-box" x="640" y="20" width="80" height="40" rx="2" />
+      <text class="node-label" x="680" y="44">GPIO_OUT</text>
+      
+      <!-- Animation elements -->
+      <circle class="trace-pulse" id="pulse-dot" cx="160" cy="40" r="4" opacity="0" />
+      <circle class="led-indicator led-off" id="led-1" cx="300" cy="40" r="4" />
+      <circle class="led-indicator led-off" id="led-2" cx="620" cy="40" r="4" />
+    </svg>
+    <div style="text-align: right; margin-top: 8px;">
+        <button class="btn-action" onclick="toggleDesignerPreview()">TEST TRACE ANIMATION</button>
+    </div>
+  </div>
 
   <div class="section-title">Test Runs</div>
   <table class="run-table">
@@ -352,16 +437,47 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 </div>
 
 <div class="transport">
-  <div class="status-dot"></div>
-  <span>SERVER ONLINE</span>
-  <span style="margin-left:auto;" id="clock"></span>
+  <button class="transport-btn">LOGIC ANALYZER</button>
+  <button class="transport-btn">BOARD EDITOR</button>
+  
+  <div class="status-indicator">
+    <div class="status-dot"></div>
+    <span>SERVER ONLINE &nbsp;&nbsp;|&nbsp;&nbsp; </span>
+    <span style="margin-left:8px;" id="clock"></span>
+  </div>
 </div>
 
-<script>
+<script type="module">
+import { CircuitAnimator } from '/static/animation.js';
+
 // Clock
 setInterval(() => {
   document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-US', {hour12:false});
 }, 1000);
+
+let animator = null;
+const svg = document.getElementById('circuit-anim');
+if (svg) animator = new CircuitAnimator(svg);
+
+// Toggle trace animation
+window.toggleDesignerPreview = function() {
+    if (!animator) return;
+    if (animator.isPlaying) {
+        animator.stop();
+    } else {
+        // Load mock trace for designer preview
+        animator.loadTrace({
+            duration_ns: 1000000,
+            channels: {
+                gpio: [
+                    { t_ns: 200000, value: 1 },
+                    { t_ns: 600000, value: 0 }
+                ]
+            }
+        });
+        animator.start();
+    }
+}
 
 // Load runs
 fetch('/api/runs').then(r=>r.json()).then(runs => {
@@ -377,21 +493,17 @@ fetch('/api/runs').then(r=>r.json()).then(runs => {
       <td>${r.chip}</td>
       <td>${dur}</td>
       <td>${ts}</td>
-      <td><a href="/view/${r.run_id}">VIEW</a></td>
+      <td><a href="/view/${r.run_id}" class="btn-action">VIEW TRACE</a></td>
     </tr>`;
   }).join('');
 
-  // If there are 2+ runs, add compare links
   if (runs.length >= 2) {
     const last = runs[runs.length-1];
     const first = runs[0];
-    tbody.innerHTML += `<tr><td colspan="6" style="padding-top:12px;">
-      <a href="/compare/${first.run_id}/${last.run_id}">⟷ COMPARE ${first.run_id} vs ${last.run_id}</a>
+    tbody.innerHTML += `<tr><td colspan="6" style="padding-top:16px;">
+      <a href="/compare/${first.run_id}/${last.run_id}" class="btn-action">⟷ COMPARE ${first.run_id} vs ${last.run_id}</a>
     </td></tr>`;
   }
-
-  // Drive the circuit animation from the first run's trace data
-  animateCircuit(runs[0]);
 });
 
 // Load boards
@@ -400,59 +512,26 @@ fetch('/api/boards').then(r=>r.json()).then(boards => {
   if (!boards.length) { el.innerHTML = '<div style="color:var(--silk-dim);">No board descriptors in hardware/boards/</div>'; return; }
   el.innerHTML = boards.map(b => {
     const periph_count = (b.board.peripherals || []).length;
-    const sim = b.simulator.available
-      ? `<span class="sim-ok">✓ SIMULATOR AVAILABLE (${b.simulator.supported_pins_count} pins)</span>`
-      : `<span class="sim-err">✗ ${b.simulator.error || 'No simulator backing'}</span>`;
-    const created = b.board.created_by === 'user' ? ' [USER]' : '';
-    return `<div class="board-card">
-      <div class="chip-name">${b.board.chip}${created}</div>
+    const isUser = b.board.created_by === 'user';
+    const createdBadge = isUser ? '<span class="chip-badge">USER</span>' : '<span class="chip-badge" style="background:var(--silk-dim);">BUILTIN</span>';
+    
+    let simClass = 'sim-ok';
+    let simText = `✓ SIMULATOR AVAILABLE (${b.simulator.supported_pins_count} pins)`;
+    let cardClass = 'board-card';
+    
+    if (!b.simulator.available) {
+        simClass = 'sim-err';
+        simText = `✗ ${b.simulator.error || 'No simulator backing'}`;
+        cardClass += ' no-sim';
+    }
+    
+    return `<div class="${cardClass}">
+      <div class="chip-name">${b.board.chip} ${createdBadge}</div>
       <div class="periph-count">${periph_count} peripheral(s) · ${b.board.package || 'unknown package'}</div>
-      <div class="sim-status">${sim}</div>
+      <div class="sim-status ${simClass}">${simText}</div>
     </div>`;
   }).join('');
 });
-
-// Circuit animation — driven by real run data, idle when no run selected
-function animateCircuit(run) {
-  const pulse = document.getElementById('pulse-dot');
-  const led1 = document.getElementById('led-1');
-  const led2 = document.getElementById('led-2');
-  const path = document.querySelector('.trace-line');
-  if (!run || !path) return;
-
-  // Fetch actual trace to get real gpio timestamps
-  fetch(`/api/runs/${run.run_id}/trace.json`).then(r=>r.json()).then(trace => {
-    const gpio = trace.channels?.gpio || [];
-    if (!gpio.length) return; // No data → idle
-
-    const duration = trace.duration_ns || 1;
-    const totalAnimMs = 4000; // 4 second animation cycle
-
-    // Find first HIGH transition
-    const firstHigh = gpio.find(g => g.value === 1);
-    const firstHighPct = firstHigh ? firstHigh.t_ns / duration : 1;
-
-    // Animate the pulse dot along the SVG path
-    const pathLen = path.getTotalLength();
-    let start = null;
-    function step(ts) {
-      if (!start) start = ts;
-      const elapsed = (ts - start) % totalAnimMs;
-      const pct = elapsed / totalAnimMs;
-      const pt = path.getPointAtLength(pct * pathLen);
-      pulse.setAttribute('cx', pt.x);
-      pulse.setAttribute('cy', pt.y);
-      pulse.setAttribute('opacity', '1');
-
-      // Light up LEDs at the correct proportion of the trace
-      led1.className.baseVal = 'led-indicator ' + (pct >= firstHighPct * 0.5 ? 'led-on' : 'led-off');
-      led2.className.baseVal = 'led-indicator ' + (pct >= firstHighPct ? 'led-on' : 'led-off');
-
-      requestAnimationFrame(step);
-    }
-    requestAnimationFrame(step);
-  }).catch(() => {}); // Silently stay idle if fetch fails
-}
 </script>
 </body>
 </html>"""

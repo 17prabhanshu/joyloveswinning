@@ -32,16 +32,75 @@ def plan(firmware_dir):
 @click.option('--autonomous/--no-autonomous', default=False, help='Run in autonomous mode')
 @click.option('--max-iterations', default=5, help='Max autonomous iterations')
 @click.option('--output-dir', default='artifacts', help='Output directory for reports')
-def test(firmware_dir, chip, system, autonomous, max_iterations, output_dir):
+@click.option('--executable', default=None, help='Compiled ELF to run (if different from firmware_dir)')
+@click.option('--defective/--no-defective', default=False, help='Compile with injected defects (if compiling .c)')
+def test(firmware_dir, chip, system, autonomous, max_iterations, output_dir, executable, defective):
     """Run firmware tests."""
     console.print(f"[bold blue]Running tests on firmware: {firmware_dir}[/bold blue]")
     console.print(f"Chip: {chip}, Autonomous: {autonomous}")
     
+    # Compile if passing a .c file without an explicit executable
+    if firmware_dir.endswith('.c') and not executable:
+        import subprocess, os
+        os.makedirs(output_dir, exist_ok=True)
+        elf_name = "firmware_defective.elf" if defective else "firmware.elf"
+        executable = os.path.join(output_dir, elf_name)
+        console.print(f"[yellow]Compiling {firmware_dir} to {executable}...[/yellow]")
+        
+        linker_script = os.path.join(output_dir, "layout.ld")
+        with open(linker_script, "w") as f:
+            f.write("""
+MEMORY {
+    FLASH (rx) : ORIGIN = 0x00000000, LENGTH = 128K
+    RAM (rwx) : ORIGIN = 0x20000000, LENGTH = 20K
+}
+SECTIONS {
+    .text : {
+        KEEP(*(.vectors))
+        *(.text*)
+        *(.rodata*)
+    } > FLASH
+    .data : { *(.data*) } > RAM AT > FLASH
+    .bss : { *(.bss*) *(COMMON) } > RAM
+}
+""")
+        
+        # Determine toolchain path (try PATH first, then arm-toolchain dir)
+        gcc_cmd = "arm-none-eabi-gcc"
+        if os.path.exists("arm-toolchain/bin/arm-none-eabi-gcc"):
+            gcc_cmd = "./arm-toolchain/bin/arm-none-eabi-gcc"
+            
+        compile_cmd = [
+            gcc_cmd,
+            "-mcpu=cortex-m3",
+            "-mthumb",
+            "-nostdlib",
+            f"-T{linker_script}",
+            firmware_dir,
+            "-o", executable
+        ]
+        if defective:
+            compile_cmd.extend([
+                "-DDEFECT_SENSOR_DISCONNECT_UNSAFE",
+                "-DDEFECT_OUT_OF_RANGE_ACCEPTED",
+                "-DDEFECT_INCLUSIVE_EXCLUSIVE_COMPARISON",
+                "-DDEFECT_RAPID_TRANSITION_STATE",
+                "-DDEFECT_MALFORMED_UART_CMD"
+            ])
+            
+        try:
+            subprocess.run(compile_cmd, check=True, capture_output=True, text=True)
+            console.print(f"[green]Successfully compiled {executable}[/green]")
+        except subprocess.CalledProcessError as e:
+            console.print(f"[bold red]Compilation failed:[/bold red]\n{e.stderr}")
+            import sys; sys.exit(1)
+            
     simulator = "LabWiredAdapter"
     
     agent = AutonomousAgent(
         simulator_name=simulator,
         firmware_path=firmware_dir,
+        executable_path=executable,
         chip=chip,
         system_manifest=system,
         max_iterations=max_iterations,

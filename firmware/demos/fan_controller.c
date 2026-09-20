@@ -21,13 +21,13 @@ int _strcmp(const char* s1, const char* s2) {
 
 // PC13 is pin 13
 #define FAN_PIN 13
-#define HIGH 1
-#define LOW 0
+#define HIGH 2
+#define LOW 1
 #define OFF 0
 #define MEDIUM 1 // using 1 for simplicity
 
 void GPIO_Write(int pin, int state) {
-    if (state) {
+    if (state > 0) { // Simple binary mapping for now
         GPIOC_ODR |= (1 << pin);
     } else {
         GPIOC_ODR &= ~(1 << pin);
