@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { AlertTriangle, MapPin, Search } from 'lucide-react';
+import { AlertTriangle, MapPin, Search, Bug, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Failures({ runId }: { runId: string | null }) {
   const [failures, setFailures] = useState<any[]>([]);
@@ -17,66 +18,87 @@ export default function Failures({ runId }: { runId: string | null }) {
   }, [runId]);
 
   return (
-    <div className="p-6 h-full overflow-auto scrollbar-custom">
-      <header className="mb-6">
-        <h2 className="text-2xl font-bold text-agent-alert flex items-center gap-2">
-          <AlertTriangle />
+    <div className="p-8 h-full overflow-auto scrollbar-custom relative">
+      {/* Background Ambience */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-red-500/5 rounded-full blur-[100px] pointer-events-none -z-10"></div>
+      
+      <header className="mb-10 slide-up">
+        <h2 className="text-3xl font-black text-white flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]">
+            <AlertTriangle size={24} />
+          </div>
           Triaged Failures
         </h2>
-        <p className="text-gray-400 text-sm mt-1">Divergences between expected and observed behavior</p>
+        <p className="text-gray-400 text-sm mt-2 ml-14">Divergences between expected simulation states and observed hardware execution</p>
       </header>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {failures.map((f, i) => (
-          <div key={i} className="bg-agent-800 border border-agent-alert/50 rounded-lg p-5 flex flex-col gap-4 relative overflow-hidden group">
-            <div className="absolute top-0 left-0 w-1 h-full bg-agent-alert"></div>
-            
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="font-bold text-lg font-mono text-white">{f.id || `FAILURE-${i+1}`}</h3>
-                <div className="flex items-center gap-2 text-sm text-gray-400 mt-1">
-                  <MapPin size={14} />
-                  <span className="font-mono">{f.source_location || 'Unknown location'}</span>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 relative z-10">
+        <AnimatePresence>
+          {failures.map((f, i) => (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+              key={f.test_id || i} 
+              className="bg-[#050b14]/80 backdrop-blur-md border border-red-500/20 rounded-2xl p-6 flex flex-col gap-5 relative overflow-hidden group shadow-xl hover:shadow-[0_0_30px_rgba(239,68,68,0.15)] hover:border-red-500/40 transition-all duration-300"
+            >
+              <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-red-500 to-orange-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]"></div>
+              
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="font-bold text-xl font-mono text-white tracking-tight">{f.test_id || `FAILURE-${i+1}`}</h3>
+                  <div className="flex items-center gap-2 text-xs text-red-400/80 mt-2 bg-red-950/30 px-3 py-1 rounded-full border border-red-500/10 inline-flex">
+                    <MapPin size={12} />
+                    <span className="font-mono tracking-wider">{f.diagnosis?.source_location || f.scenario?.target || 'Unknown firmware location'}</span>
+                  </div>
+                </div>
+                <div className="px-3 py-1.5 bg-black/60 border border-red-500/30 rounded-lg text-xs font-bold text-red-400 flex items-center gap-2 shadow-inner">
+                  <Bug size={14} />
+                  {f.diagnosis?.confidence ? `${Math.round(f.diagnosis.confidence * 100)}% CONFIDENCE` : 'HIGH CONFIDENCE'}
                 </div>
               </div>
-              <div className="px-3 py-1 bg-agent-900 border border-agent-700 rounded text-xs font-bold text-agent-warning flex items-center gap-1">
-                <Search size={12} />
-                CONFIDENCE: {f.confidence || 'HIGH'}
-              </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4 bg-agent-900 p-4 rounded border border-agent-700">
-              <div>
-                <p className="text-xs text-gray-500 font-bold mb-1 uppercase">Expected</p>
-                <p className="font-mono text-sm text-agent-accent whitespace-pre-wrap">{f.expected || 'N/A'}</p>
+              <div className="grid grid-cols-2 gap-4 bg-black/40 p-5 rounded-xl border border-white/5 shadow-inner mt-2">
+                <div>
+                  <p className="text-[10px] text-gray-500 font-bold mb-2 uppercase tracking-widest">Expected Behavior</p>
+                  <p className="font-mono text-xs text-cyan-400 whitespace-pre-wrap leading-relaxed">{f.scenario?.expected_outcome || f.verification?.assertions?.[0]?.expected || 'N/A'}</p>
+                </div>
+                <div className="border-l border-white/5 pl-4">
+                  <p className="text-[10px] text-gray-500 font-bold mb-2 uppercase tracking-widest">Observed Hardware State</p>
+                  <p className="font-mono text-xs text-red-400 whitespace-pre-wrap leading-relaxed">{f.verification?.assertions?.[0]?.observed || 'Crash / Timeout'}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-gray-500 font-bold mb-1 uppercase">Observed</p>
-                <p className="font-mono text-sm text-agent-alert whitespace-pre-wrap">{f.observed || 'N/A'}</p>
+
+              <div className="bg-red-950/20 p-5 rounded-xl border border-red-500/10 mt-2 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none"></div>
+                <p className="text-[10px] text-red-400/70 font-bold mb-3 uppercase tracking-widest flex items-center gap-2">
+                  <Search size={12} className="text-red-500" /> Root Cause Hypothesis
+                </p>
+                <p className="text-sm text-gray-300 leading-relaxed font-light">
+                  {f.diagnosis?.cause_hypothesis || 'No hypothesis generated by AI for this crash state.'}
+                </p>
               </div>
-            </div>
 
-            <div className="bg-agent-700/30 p-4 rounded">
-              <p className="text-xs text-gray-400 font-bold mb-2 uppercase">Root Cause Hypothesis</p>
-              <p className="text-sm text-gray-200 leading-relaxed">{f.cause_hypothesis || 'No hypothesis generated.'}</p>
-            </div>
-
-            <div className="flex gap-4 text-xs font-mono text-gray-500 mt-2">
-              <span>Minimization: {f.minimization_stats || 'Done'}</span>
-              <span>Regression ID: {f.regression_id || 'None'}</span>
-            </div>
-          </div>
-        ))}
+              <div className="flex justify-between items-center text-[10px] font-mono text-gray-500 mt-2 border-t border-white/5 pt-4">
+                <span className="bg-white/5 px-2 py-1 rounded">MINIMIZATION: {f.minimized ? 'Complete' : 'Pending'}</span>
+                <span className="bg-white/5 px-2 py-1 rounded text-red-400/50">REGRESSION ID: {f.regression?.regression_id || 'Generating...'}</span>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
 
         {failures.length === 0 && (
-          <div className="col-span-full p-12 flex flex-col items-center justify-center text-gray-500 border-2 border-dashed border-agent-700 rounded-lg">
-            <CheckCircle className="mb-4 opacity-50" size={48} />
-            <p className="text-lg">No failures detected in current run</p>
-          </div>
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="col-span-full py-24 flex flex-col items-center justify-center text-gray-500 border border-dashed border-white/10 rounded-2xl bg-black/20"
+          >
+            <CheckCircle2 className="mb-4 text-cyan-500/50 drop-shadow-[0_0_15px_rgba(34,211,238,0.3)]" size={48} />
+            <p className="text-lg font-light tracking-wide text-gray-400">No architectural failures detected in current run</p>
+            <p className="text-xs font-mono mt-2 opacity-50">Virtual hardware execution aligns with expected bounds</p>
+          </motion.div>
         )}
       </div>
     </div>
   );
 }
-
-import { CheckCircle } from 'lucide-react';
