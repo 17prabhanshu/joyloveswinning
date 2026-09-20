@@ -5,6 +5,7 @@ interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   runStatus: any;
+  onNewSession?: () => void;
 }
 
 const TABS = [
@@ -17,7 +18,7 @@ const TABS = [
   { name: 'Simulators', icon: Cpu },
 ];
 
-export default function Sidebar({ activeTab, setActiveTab, runStatus }: SidebarProps) {
+export default function Sidebar({ activeTab, setActiveTab, runStatus, onNewSession }: SidebarProps) {
   const [theme, setTheme] = useState('dark');
 
   const toggleTheme = () => {
@@ -58,6 +59,14 @@ export default function Sidebar({ activeTab, setActiveTab, runStatus }: SidebarP
       </nav>
 
       <div className="p-4 border-t border-agent-700 space-y-4">
+        {onNewSession && (
+          <button 
+            onClick={onNewSession}
+            className="w-full flex items-center justify-center py-2 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm tracking-wide transition-all shadow-lg"
+          >
+            + NEW FIRMWARE
+          </button>
+        )}
         <div className="bg-agent-900 rounded-md p-4 flex flex-col gap-2 border border-agent-700/50">
           <span className="text-xs text-gray-500 font-mono uppercase">System Status</span>
           <div className="flex items-center gap-2">

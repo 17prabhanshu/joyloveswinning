@@ -102,7 +102,7 @@ const FloatingParticles = () => {
           transition={{ duration: 0.8 }}
           className="flex h-screen bg-[#0a0a0a] text-white font-sans overflow-hidden"
         >
-          <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} runStatus={runStatus} />
+          <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} runStatus={runStatus} onNewSession={() => setRunId(null)} />
           <main className="flex-1 overflow-auto bg-[#050505] relative shadow-[-10px_0_30px_rgba(0,0,0,0.5)] border-l border-white/5">
             <FloatingParticles />
             {/* Ambient Background Glows */}
