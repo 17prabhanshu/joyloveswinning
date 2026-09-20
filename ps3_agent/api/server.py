@@ -261,7 +261,7 @@ Format your response strictly as JSON with two keys:
             resp = await client.post(
                 url, 
                 json={"contents": [{"parts": [{"text": prompt}]}]}, 
-                timeout=15.0
+                timeout=180.0
             )
             
             if resp.status_code == 200:
@@ -380,7 +380,7 @@ Return ONLY the complete, fully updated C code. Do not include any explanations.
             resp = await client.post(
                 url, 
                 json={"contents": [{"parts": [{"text": prompt}]}]}, 
-                timeout=15.0
+                timeout=180.0
             )
             
             if resp.status_code == 200:
@@ -436,7 +436,7 @@ async def chat_with_agent(run_id: str, req: ChatRequest):
         }
         
         async with httpx.AsyncClient() as client:
-            resp = await client.post(url, json=payload, timeout=10.0)
+            resp = await client.post(url, json=payload, timeout=180.0)
             if resp.status_code == 200:
                 data = resp.json()
                 text = data["candidates"][0]["content"]["parts"][0]["text"]
@@ -444,6 +444,7 @@ async def chat_with_agent(run_id: str, req: ChatRequest):
             else:
                 return {"response": f"[Agent] I tried to think, but my cognitive engine returned an error: {resp.text}"}
     except Exception as e:
+        logger.error(f"Chat error: {e}", exc_info=True)
         return {"response": f"[Agent] Cognitive engine offline. Error: {str(e)}"}
 
 
