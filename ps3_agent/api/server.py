@@ -504,6 +504,8 @@ async def get_report(run_id: str):
     </html>
     """
     return HTMLResponse(content=html_content)
+
+@app.get("/api/firmware/{run_id}")
 async def get_firmware_source(run_id: str):
     if run_id not in active_runs:
         raise HTTPException(404, "Run not found")

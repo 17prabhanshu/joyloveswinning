@@ -9,23 +9,28 @@ export default function Overview({ runId }: { runId: string | null }) {
   useEffect(() => {
     if (!runId) return;
 
-    fetch(`/api/runs/${runId}/tests`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.tests && Array.isArray(data.tests)) {
-          const passed = data.tests.filter((t: any) => t.status === 'PASS').length;
-          const failed = data.tests.filter((t: any) => t.status === 'FAIL').length;
-          setMetrics(m => ({ ...m, total: data.tests.length, passed, failed }));
-        }
-      }).catch(console.error);
+    const fetchMetrics = () => {
+      fetch(`/api/runs/${runId}/tests`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.tests && Array.isArray(data.tests)) {
+            const passed = data.tests.filter((t: any) => t.status === 'PASS').length;
+            const failed = data.tests.filter((t: any) => t.status === 'FAIL').length;
+            setMetrics(m => ({ ...m, total: data.tests.length, passed, failed }));
+          }
+        }).catch(console.error);
 
-    fetch(`/api/runs/${runId}/risks`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.risks && Array.isArray(data.risks)) {
-          setMetrics(m => ({ ...m, risks: data.risks.length }));
-        }
-      }).catch(console.error);
+      fetch(`/api/runs/${runId}/risks`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.risks && Array.isArray(data.risks)) {
+            setMetrics(m => ({ ...m, risks: data.risks.length }));
+          }
+        }).catch(console.error);
+    };
+
+    fetchMetrics();
+    const interval = setInterval(fetchMetrics, 2000);
 
     const eventSource = new EventSource(`/api/runs/${runId}/events`);
     eventSource.onmessage = (e) => {
@@ -38,6 +43,7 @@ export default function Overview({ runId }: { runId: string | null }) {
     };
 
     return () => {
+      clearInterval(interval);
       eventSource.close();
     };
   }, [runId]);

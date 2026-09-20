@@ -97,22 +97,26 @@ export default function BehaviorGraph({ runId }: { runId: string | null }) {
 
   useEffect(() => {
     if (!runId) return;
-    fetch(`/api/runs/${runId}/behavior`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.nodes && data.edges) {
-          const rawNodes = data.nodes.map((n: any) => {
-            const theme = NODE_THEMES[n.kind] || NODE_THEMES.constant;
-            return {
-              id: n.id,
-              type: 'custom',
-              data: { 
-                label: n.label.length > 25 ? n.label.substring(0,25)+'...' : n.label,
-                kind: n.kind,
-                file: n.file,
-                line: n.line,
-                ...theme
-              },
+    let cancelled = false;
+    
+    const fetchGraph = () => {
+      fetch(`/api/runs/${runId}/behavior`)
+        .then(res => res.json())
+        .then(data => {
+          if (cancelled) return;
+          if (data.nodes && data.edges) {
+            const rawNodes = data.nodes.map((n: any) => {
+              const theme = NODE_THEMES[n.kind] || NODE_THEMES.constant;
+              return {
+                id: n.id,
+                type: 'custom',
+                data: { 
+                  label: n.label.length > 25 ? n.label.substring(0,25)+'...' : n.label,
+                  kind: n.kind,
+                  file: n.file,
+                  line: n.line,
+                  ...theme
+                },
             };
           });
 
@@ -144,9 +148,15 @@ export default function BehaviorGraph({ runId }: { runId: string | null }) {
 
           setNodes(layoutedNodes);
           setEdges(layoutedEdges);
+          if (interval) clearInterval(interval);
         }
       })
       .catch(console.error);
+    };
+
+    fetchGraph();
+    const interval = setInterval(fetchGraph, 3000);
+    return () => { cancelled = true; clearInterval(interval); };
   }, [runId, setNodes, setEdges]);
 
   return (

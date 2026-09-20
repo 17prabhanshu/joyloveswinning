@@ -38,16 +38,26 @@ export default function DeepDive({ runId }: { runId: string | null }) {
 
   useEffect(() => {
     if (!runId) return;
-    fetch(`/api/firmware/${runId}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.files) {
-          setFiles(data.files);
-          const first = Object.keys(data.files)[0];
-          if (first) setActiveFile(first);
-        }
-      })
-      .catch(console.error);
+    let cancelled = false;
+    
+    const fetchFirmware = () => {
+      fetch(`/api/firmware/${runId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (cancelled) return;
+          if (data.files) {
+            setFiles(data.files);
+            const first = Object.keys(data.files)[0];
+            if (first) setActiveFile(first);
+            if (interval) clearInterval(interval);
+          }
+        })
+        .catch(console.error);
+    };
+
+    fetchFirmware();
+    const interval = setInterval(fetchFirmware, 3000);
+    return () => { cancelled = true; clearInterval(interval); };
   }, [runId]);
 
   const handleChat = async (e: React.FormEvent) => {

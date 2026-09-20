@@ -7,10 +7,16 @@ export default function Regressions({ runId }: { runId: string | null }) {
 
   useEffect(() => {
     if (!runId) return;
-    fetch(`/api/runs/${runId}/regressions`)
-      .then(res => res.json())
-      .then(data => setRegressions(data.regressions || []))
-      .catch(console.error);
+    const fetchRegressions = () => {
+      fetch(`/api/runs/${runId}/regressions`)
+        .then(res => res.json())
+        .then(data => setRegressions(data.regressions || []))
+        .catch(console.error);
+    };
+    
+    fetchRegressions();
+    const interval = setInterval(fetchRegressions, 2000);
+    return () => clearInterval(interval);
   }, [runId]);
 
   return (
