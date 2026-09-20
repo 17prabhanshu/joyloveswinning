@@ -1,0 +1,31 @@
+{
+  "schema": "trace.v1",
+  "run_id": "string",
+  "test_id": "string",
+  "firmware_hash": "sha256 prefix",
+  "verdict": "PASS | FAIL | UNAVAILABLE",
+  "duration_ns": 0,
+  "board": {
+    "chip": "string",
+    "package": "string",
+    "pin_count": 0,
+    "peripherals": [
+      {"id": "string", "kind": "gpio|uart|timer|adc|sensor|led|motor",
+       "label": "string", "position": [0, 0, 0], "pins": ["string"]}
+    ]
+  },
+  "channels": {
+    "gpio": [{"t_ns": 0, "pin": "string", "value": 0}],
+    "uart": [{"t_ns": 0, "direction": "tx|rx", "bytes": "base64"}],
+    "registers": [{"t_ns": 0, "name": "string", "value": "0x0"}],
+    "sensors": [{"t_ns": 0, "id": "string", "value": 0.0, "unit": "string",
+                 "fault": "none|disconnect|stuck|out_of_range"}],
+    "faults": [{"t_ns": 0, "kind": "string", "detail": "string"}],
+    "execution": [{"t_ns": 0, "pc": "0x0", "function": "string",
+                   "source": {"file": "string", "line": 0}}]
+  },
+  "assertions": [
+    {"t_ns": 0, "type": "string", "verdict": "pass|fail",
+     "expected": null, "observed": null, "evidence_path": "string"}
+  ]
+}

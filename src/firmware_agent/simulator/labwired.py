@@ -1,0 +1,337 @@
+"""
+LabWired simulator adapter.
+
+Drives the real LabWired CLI (`labwired test`) to execute firmware ELFs
+against modeled MCU hardware. Parses result.json, uart.log, and snapshot.json
+to build a SimulationResult with actual evidence.
+
+This adapter does NOT mock or fake LabWired output. It invokes the real
+simulator binary and parses its real artifacts.
+"""
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+import tempfile
+import uuid
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+from firmware_agent.simulator.base import (
+    AssertionResult,
+    HardwareConfig,
+    SimulationResult,
+    SimulatorAdapter,
+)
+
+
+class LabWiredAdapter(SimulatorAdapter):
+    """Adapter that drives the LabWired Core CLI for firmware execution.
+
+    Uses `labwired test --script <yaml> --output-dir <dir>` to execute
+    firmware and collect UART/GPIO/register/state evidence.
+    """
+
+    def __init__(
+        self,
+        labwired_bin: str | None = None,
+        config_dir: str | None = None,
+        work_dir: str | None = None,
+    ):
+        # Find LabWired binary
+        self._bin = labwired_bin or self._find_labwired()
+        # LabWired config directory (chips, systems)
+        self._config_dir = config_dir
+        # Working directory for temporary scripts/artifacts
+        self._work_dir = work_dir or os.path.join(os.getcwd(), "artifacts", "raw")
+        os.makedirs(self._work_dir, exist_ok=True)
+        self._current_script: Path | None = None
+        self._output_dir: Path | None = None
+
+    def capabilities(self) -> SimulatorCapabilities:
+        from firmware_agent.simulator.base import SimulatorCapabilities
+        return SimulatorCapabilities(
+            can_observe_gpio=True,
+            can_observe_uart=True,
+            can_observe_registers=True,
+            can_inject_faults=["disconnect", "out_of_range"]
+        )
+
+    def name(self) -> str:
+        return "labwired"
+
+    def is_available(self) -> bool:
+        """Check if LabWired CLI binary is accessible."""
+        try:
+            result = subprocess.run(
+                [self._bin, "--version"],
+                capture_output=True, text=True, timeout=10,
+            )
+            return result.returncode == 0 and "labwired" in result.stdout.lower()
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            return False
+
+    def get_version(self) -> str | None:
+        """Return LabWired CLI version string."""
+        try:
+            result = subprocess.run(
+                [self._bin, "--version"],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Failed to get version: {e}")
+        return None
+
+    def list_chips(self) -> list[str]:
+        """Return the list of supported chip names."""
+        try:
+            result = subprocess.run(
+                [self._bin, "chips"],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode == 0:
+                return [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Failed to list chips: {e}")
+        return []
+
+    def prepare(self, firmware_path: str | Path, config: HardwareConfig) -> None:
+        """Generate a LabWired test YAML script and output directory."""
+        firmware_path = Path(firmware_path).resolve()
+        if not firmware_path.exists():
+            raise FileNotFoundError(f"Firmware not found: {firmware_path}")
+
+        config.firmware_path = str(firmware_path)
+        if config.chip:
+            config.chip = str(Path(config.chip).resolve())
+        if config.system_manifest:
+            config.system_manifest = str(Path(config.system_manifest).resolve())
+
+        # Create unique output dir for this run
+        run_id = uuid.uuid4().hex[:8]
+        self._output_dir = Path(self._work_dir) / f"run_{run_id}"
+        self._output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Build the test YAML script
+        script = self._build_test_script(config)
+        self._current_script = self._output_dir / "test_script.yaml"
+        self._current_script.write_text(yaml.dump(script, default_flow_style=False))
+
+    def execute(self, config: HardwareConfig) -> SimulationResult:
+        """Run LabWired CLI and parse the real results."""
+        if self._current_script is None or self._output_dir is None:
+            raise RuntimeError("Must call prepare() before execute()")
+
+        cmd = [
+            self._bin, "test",
+            "--script", str(self._current_script),
+            "--output-dir", str(self._output_dir),
+            "--no-uart-stdout",
+        ]
+        cmd.extend(config.extra_args)
+
+        import time
+        start_time = time.time()
+        
+        try:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=config.wall_time_ms / 1000 + 30 if config.wall_time_ms else 60,
+                cwd=str(self._output_dir),
+            )
+            duration = time.time() - start_time
+            
+            # Gate 1.5 Raw artifact retention
+            (self._output_dir / "stdout.txt").write_text(proc.stdout)
+            (self._output_dir / "stderr.txt").write_text(proc.stderr)
+            run_manifest = {
+                "command": cmd,
+                "working_dir": str(self._output_dir),
+                "resolved_binary": self._bin,
+                "exit_code": proc.returncode,
+                "duration_s": duration
+            }
+            (self._output_dir / "run_manifest.json").write_text(json.dumps(run_manifest, indent=2))
+            
+        except subprocess.TimeoutExpired as e:
+            duration = time.time() - start_time
+            run_manifest = {
+                "command": cmd,
+                "working_dir": str(self._output_dir),
+                "resolved_binary": self._bin,
+                "exit_code": "TIMEOUT",
+                "duration_s": duration,
+                "error": str(e)
+            }
+            (self._output_dir / "run_manifest.json").write_text(json.dumps(run_manifest, indent=2))
+            
+            return SimulationResult(
+                status="error",
+                stop_reason="wall_time",
+                stop_reason_details={"error": "Host process timed out"},
+            )
+
+        # Parse LabWired artifacts
+        return self._parse_results(proc)
+
+    def cleanup(self) -> None:
+        """Remove temporary run artifacts."""
+        # Keep work_dir but clean current run
+        self._current_script = None
+        self._output_dir = None
+
+    def _find_labwired(self) -> str:
+        """Locate the labwired binary on the system."""
+        # Check common locations
+        candidates = [
+            "labwired",
+            os.path.expanduser("~/.local/bin/labwired"),
+            "/usr/local/bin/labwired",
+        ]
+        for candidate in candidates:
+            if shutil.which(candidate):
+                return candidate
+        # Return default and let is_available() fail gracefully
+        return "labwired"
+
+    def _build_test_script(self, config: HardwareConfig) -> dict[str, Any]:
+        """Build a LabWired v1.0 test YAML script from HardwareConfig."""
+        script: dict[str, Any] = {"schema_version": "1.0"}
+
+        # Inputs
+        inputs: dict[str, Any] = {"firmware": config.firmware_path}
+        if config.system_manifest:
+            inputs["system"] = config.system_manifest
+        elif config.chip:
+            inputs["chip"] = config.chip
+        script["inputs"] = inputs
+
+        # Limits
+        limits: dict[str, Any] = {"max_steps": config.max_steps}
+        if config.max_cycles is not None:
+            limits["max_cycles"] = config.max_cycles
+        if config.max_uart_bytes is not None:
+            limits["max_uart_bytes"] = config.max_uart_bytes
+        if config.wall_time_ms is not None:
+            limits["wall_time_ms"] = config.wall_time_ms
+        if config.no_progress_steps is not None:
+            limits["no_progress_steps"] = config.no_progress_steps
+        script["limits"] = limits
+
+        # Assertions
+        if config.assertions:
+            script["assertions"] = config.assertions
+
+        # UART injections (schema 1.2)
+        if config.uart_injections:
+            script["schema_version"] = "1.2"
+            script["uart_injections"] = config.uart_injections
+
+        return script
+
+    def _parse_results(self, proc: subprocess.CompletedProcess) -> SimulationResult:
+        """Parse LabWired output artifacts into SimulationResult."""
+        if self._output_dir is None:
+            return SimulationResult(status="error", stop_reason="config_error")
+
+        result_path = self._output_dir / "result.json"
+        uart_path = self._output_dir / "uart.log"
+        snapshot_path = self._output_dir / "snapshot.json"
+
+        # Read UART output
+        uart_output = ""
+        if uart_path.exists():
+            uart_output = uart_path.read_text(errors="replace")
+
+        # Read snapshot
+        snapshot = {}
+        if snapshot_path.exists():
+            try:
+                snapshot = json.loads(snapshot_path.read_text())
+            except json.JSONDecodeError as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Failed to decode snapshot.json: {e}")
+
+        # Parse result.json - the authoritative source
+        if result_path.exists():
+            try:
+                raw = json.loads(result_path.read_text())
+                return self._build_result_from_json(raw, uart_output, snapshot)
+            except json.JSONDecodeError as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Failed to decode result.json: {e}")
+
+        # Fallback: determine status from exit code
+        from firmware_agent.verification.verifier import VerificationStatus
+        if proc.returncode == 0:
+            status = VerificationStatus.PASS.value
+        elif proc.returncode == 1:
+            status = VerificationStatus.FAIL.value
+        elif proc.returncode == 2:
+            status = VerificationStatus.ERROR.value
+        elif proc.returncode == 3:
+            status = VerificationStatus.ERROR.value
+        else:
+            status = VerificationStatus.ERROR.value
+
+        return SimulationResult(
+            status=status,
+            uart_output=uart_output,
+            snapshot=snapshot,
+            stop_reason_details={
+                "exit_code": proc.returncode,
+                "stderr": proc.stderr[:2000] if proc.stderr else "",
+                "stdout": proc.stdout[:2000] if proc.stdout else "",
+            },
+        )
+
+    def _build_result_from_json(
+        self,
+        raw: dict[str, Any],
+        uart_output: str,
+        snapshot: dict[str, Any],
+    ) -> SimulationResult:
+        """Build SimulationResult from LabWired's result.json."""
+        assertions = []
+        for a in raw.get("assertions", []):
+            assertions.append(AssertionResult(
+                assertion=a.get("assertion", {}),
+                passed=a.get("passed", False),
+            ))
+
+        # Extract CPU state from snapshot or result
+        cpu_state = raw.get("cpu_state", {})
+        if not cpu_state and snapshot:
+            cpu_state = snapshot.get("cpu", {})
+
+        # Extract GPIO state from snapshot
+        gpio_state = {}
+        if snapshot:
+            gpio_state = snapshot.get("gpio", snapshot.get("peripherals", {}))
+
+        return SimulationResult(
+            status=raw.get("status", "error"),
+            steps_executed=raw.get("steps_executed", 0),
+            cycles=raw.get("cycles", 0),
+            instructions=raw.get("instructions", 0),
+            stop_reason=raw.get("stop_reason", "unknown"),
+            stop_reason_details=raw.get("stop_reason_details", {}),
+            limits=raw.get("limits", {}),
+            assertions=assertions,
+            uart_output=uart_output,
+            gpio_state=gpio_state,
+            cpu_state=cpu_state,
+            raw_result=raw,
+            firmware_hash=raw.get("firmware_hash", ""),
+            snapshot=snapshot,
+        )
