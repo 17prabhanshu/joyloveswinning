@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Activity, ShieldAlert, CheckCircle, XCircle, Zap, FileText } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Activity, ShieldAlert, CheckCircle, XCircle, Zap, FileText, Clock, Cpu } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Overview({ runId }: { runId: string | null }) {
   const [events, setEvents] = useState<any[]>([]);
+  const [tests, setTests] = useState<any[]>([]);
   const [metrics, setMetrics] = useState({ total: 0, passed: 0, failed: 0, risks: 0 });
+  const [runStatus, setRunStatus] = useState<string>('running');
 
   useEffect(() => {
     if (!runId) return;
 
-    const fetchMetrics = () => {
+    const fetchData = () => {
       fetch(`/api/runs/${runId}/tests`)
         .then(res => res.json())
         .then(data => {
@@ -17,6 +19,7 @@ export default function Overview({ runId }: { runId: string | null }) {
             const passed = data.tests.filter((t: any) => t.status === 'PASS').length;
             const failed = data.tests.filter((t: any) => t.status === 'FAIL').length;
             setMetrics(m => ({ ...m, total: data.tests.length, passed, failed }));
+            setTests(data.tests);
           }
         }).catch(console.error);
 
@@ -27,10 +30,16 @@ export default function Overview({ runId }: { runId: string | null }) {
             setMetrics(m => ({ ...m, risks: data.risks.length }));
           }
         }).catch(console.error);
+
+      fetch(`/api/runs/${runId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.status) setRunStatus(data.status);
+        }).catch(console.error);
     };
 
-    fetchMetrics();
-    const interval = setInterval(fetchMetrics, 2000);
+    fetchData();
+    const interval = setInterval(fetchData, 1500);
 
     const eventSource = new EventSource(`/api/runs/${runId}/events`);
     eventSource.onmessage = (e) => {
@@ -48,91 +57,127 @@ export default function Overview({ runId }: { runId: string | null }) {
     };
   }, [runId]);
 
-  const isRunning = events.length === 0 || (events[0] && !events[0].content.includes('Run complete'));
+  const isRunning = runStatus === 'running' || runStatus === 'starting';
 
   return (
-    <div className="p-8 h-full flex flex-col gap-8 bg-[#050505]">
-      <header className="flex justify-between items-end">
+    <div className="p-6 h-full flex flex-col gap-5 bg-[#050505]">
+      {/* Header */}
+      <header className="flex justify-between items-center">
         <div>
-          <h2 className="text-4xl font-black tracking-tighter bg-gradient-to-r from-white to-gray-600 bg-clip-text text-transparent">Control Console</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-white">Control Console</h2>
           <div className="flex items-center gap-3 mt-1">
-            <p className="text-gray-500 text-sm uppercase tracking-widest font-mono">Live Telemetry & Diagnostics</p>
+            <p className="text-gray-500 text-xs uppercase tracking-widest font-mono">Live Telemetry</p>
             {isRunning && (
-              <div className="flex items-center gap-2 px-2 py-0.5 bg-blue-900/20 rounded-full border border-blue-500/30">
-                <div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                <span className="text-blue-400 text-[10px] uppercase font-bold tracking-wider">Simulating</span>
+              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-950/50 rounded-full border border-blue-500/20">
+                <div className="w-2 h-2 border-[1.5px] border-blue-400 border-t-transparent rounded-full animate-spin" />
+                <span className="text-blue-400 text-[9px] uppercase font-semibold tracking-wider">Simulating</span>
+              </div>
+            )}
+            {!isRunning && runStatus === 'completed' && (
+              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-green-950/50 rounded-full border border-green-500/20">
+                <CheckCircle size={10} className="text-green-400" />
+                <span className="text-green-400 text-[9px] uppercase font-semibold tracking-wider">Complete</span>
               </div>
             )}
           </div>
         </div>
-        <div className="flex gap-4">
-          <a href={`/api/runs/${runId}/report`} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-6 py-2 bg-purple-900/20 border border-purple-500/30 rounded-lg text-purple-400 text-sm font-bold tracking-widest uppercase hover:bg-purple-900/40 transition-colors">
-            <FileText size={16} />
-            View Markdown Report
+        <div className="flex gap-3">
+          <a href={`/api/runs/${runId}/report`} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-4 py-1.5 bg-white/5 border border-white/10 rounded-lg text-gray-400 text-xs font-medium hover:bg-white/10 transition-colors">
+            <FileText size={13} />
+            Report
           </a>
-          <div className="flex items-center gap-2 px-4 py-2 bg-blue-900/20 border border-blue-500/30 rounded-full text-blue-400 text-xs font-bold tracking-widest uppercase shadow-[0_0_15px_rgba(59,130,246,0.3)]">
-            <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
-            System Online
-          </div>
         </div>
       </header>
 
-      <div className="grid grid-cols-4 gap-6">
-        <MetricCard title="TESTS EXECUTED" value={metrics.total} icon={Activity} />
-        <MetricCard title="ASSERTIONS PASSED" value={metrics.passed} icon={CheckCircle} color="text-green-500" glow="shadow-[0_0_20px_rgba(34,197,94,0.15)]" />
-        <MetricCard title="ANOMALIES FOUND" value={metrics.failed} icon={XCircle} color="text-red-500" glow="shadow-[0_0_20px_rgba(239,68,68,0.15)]" />
-        <MetricCard title="HUNTED RISKS" value={metrics.risks} icon={ShieldAlert} color="text-yellow-500" glow="shadow-[0_0_20px_rgba(234,179,8,0.15)]" />
+      {/* Metric Cards */}
+      <div className="grid grid-cols-4 gap-4">
+        <MetricCard title="Tests Run" value={metrics.total} icon={Activity} />
+        <MetricCard title="Passed" value={metrics.passed} icon={CheckCircle} color="text-emerald-400" accent="border-emerald-500/20" />
+        <MetricCard title="Failed" value={metrics.failed} icon={XCircle} color="text-red-400" accent="border-red-500/20" />
+        <MetricCard title="Risks" value={metrics.risks} icon={ShieldAlert} color="text-amber-400" accent="border-amber-500/20" />
       </div>
 
-      <div className="flex-1 grid grid-cols-3 gap-6 min-h-0">
-        <div className="col-span-2 bg-[#0a0a0a] border border-white/5 rounded-2xl flex flex-col overflow-hidden shadow-2xl relative">
-          <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-blue-500/50 to-transparent"></div>
-          <div className="p-5 border-b border-white/5 bg-[#111]/50 backdrop-blur-md">
-            <h3 className="font-bold tracking-widest text-xs text-gray-400 uppercase flex items-center gap-3">
-              <Zap size={14} className="text-blue-500" /> Activity Stream
+      {/* Main Content Grid */}
+      <div className="flex-1 grid grid-cols-5 gap-4 min-h-0">
+        {/* Activity Stream */}
+        <div className="col-span-3 bg-[#0a0a0a] border border-white/5 rounded-xl flex flex-col overflow-hidden">
+          <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+            <h3 className="font-semibold tracking-wide text-xs text-gray-400 uppercase flex items-center gap-2">
+              <Zap size={12} className="text-blue-400" /> Activity Stream
             </h3>
+            <span className="text-[10px] text-gray-600 font-mono">{events.length} events</span>
           </div>
-          <div className="flex-1 overflow-auto p-5 space-y-3 font-mono text-sm scrollbar-custom">
-            {events.map((ev, i) => (
-              <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}>
-                <div className="flex gap-4 p-3 bg-black/40 rounded-lg border border-white/5 hover:border-blue-500/30 hover:bg-blue-900/10 transition-colors">
-                  <span className="text-gray-600 whitespace-nowrap text-xs flex items-center">{new Date(ev.timestamp || Date.now()).toLocaleTimeString()}</span>
-                  <span className="text-blue-400 font-bold w-32 truncate text-xs flex items-center">[{ev.agent || 'SYSTEM'}]</span>
-                  <span className="text-gray-300 flex-1 leading-relaxed">{ev.reason || ev.message || JSON.stringify(ev)}</span>
-                </div>
-              </motion.div>
-            ))}
+          <div className="flex-1 overflow-auto p-3 space-y-1.5 font-mono text-xs scrollbar-custom">
+            <AnimatePresence initial={false}>
+              {events.map((ev, i) => (
+                <motion.div
+                  key={`${ev.timestamp}-${i}`}
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <div className="flex gap-3 px-3 py-2 rounded-lg hover:bg-white/[0.02] transition-colors group">
+                    <span className="text-gray-700 whitespace-nowrap text-[10px] pt-0.5">{new Date(ev.timestamp || Date.now()).toLocaleTimeString()}</span>
+                    <span className={`font-bold w-24 truncate text-[10px] pt-0.5 ${
+                      ev.agent === 'VERIFIER' ? 'text-emerald-500' :
+                      ev.agent === 'EXECUTOR' ? 'text-blue-400' :
+                      ev.agent === 'PLANNER' ? 'text-purple-400' :
+                      ev.agent === 'DIAGNOSER' ? 'text-red-400' :
+                      'text-gray-500'
+                    }`}>[{ev.agent || 'SYSTEM'}]</span>
+                    <span className="text-gray-400 flex-1 leading-relaxed">{ev.reason || ev.message || JSON.stringify(ev)}</span>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
             {events.length === 0 && (
-              <div className="text-gray-600 text-center py-12 flex flex-col items-center gap-4 animate-pulse">
-                <Activity size={32} /> Waiting for telemetry...
+              <div className="text-gray-600 text-center py-16 flex flex-col items-center gap-3">
+                <div className="w-8 h-8 border-2 border-gray-700 border-t-blue-500 rounded-full animate-spin" />
+                <span className="text-[10px] uppercase tracking-widest">Awaiting telemetry...</span>
               </div>
             )}
           </div>
         </div>
 
-        <div className="bg-[#0a0a0a] border border-white/5 rounded-2xl p-5 flex flex-col shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-[1px] h-full bg-gradient-to-b from-transparent via-purple-500/30 to-transparent"></div>
-          <h3 className="font-bold tracking-widest text-xs text-gray-400 uppercase mb-4 z-10 flex items-center gap-2">
-            <ShieldAlert size={14} className="text-purple-500" /> Target Firmware Array
-          </h3>
-          <div className="flex-1 flex items-center justify-center relative bg-black/50 rounded-xl border border-white/5 overflow-hidden">
-            {/* Animated SVG Circuit representation */}
-            <div className="absolute inset-0 opacity-20 animate-pulse-glow flex items-center justify-center">
-              <svg viewBox="0 0 100 100" className="w-full h-full p-4" fill="none" stroke="currentColor" strokeWidth="0.5">
-                <circle cx="50" cy="50" r="30" stroke="#8b5cf6" />
-                <circle cx="50" cy="50" r="40" stroke="#3b82f6" strokeDasharray="4 4" className="animate-spin-slow" />
-                <circle cx="50" cy="50" r="20" stroke="#10b981" />
-                <line x1="50" y1="20" x2="50" y2="0" stroke="#8b5cf6" />
-                <line x1="50" y1="100" x2="50" y2="80" stroke="#8b5cf6" />
-                <line x1="20" y1="50" x2="0" y2="50" stroke="#3b82f6" />
-                <line x1="100" y1="50" x2="80" y2="50" stroke="#3b82f6" />
-                <circle cx="50" cy="50" r="4" fill="#ef4444" className="animate-ping" />
-              </svg>
-            </div>
-            <div className="z-10 text-center">
-              <p className="text-white font-mono text-2xl font-black tracking-tight">{metrics.risks}</p>
-              <p className="text-gray-500 text-xs uppercase tracking-widest mt-1">Identified Nodes</p>
-            </div>
+        {/* Live Test Progress */}
+        <div className="col-span-2 bg-[#0a0a0a] border border-white/5 rounded-xl flex flex-col overflow-hidden">
+          <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+            <h3 className="font-semibold tracking-wide text-xs text-gray-400 uppercase flex items-center gap-2">
+              <Cpu size={12} className="text-purple-400" /> Test Progress
+            </h3>
+            <span className="text-[10px] text-gray-600 font-mono">{metrics.passed + metrics.failed}/{metrics.total}</span>
+          </div>
+          <div className="flex-1 overflow-auto p-3 space-y-1 scrollbar-custom">
+            <AnimatePresence initial={false}>
+              {tests.map((test: any, i: number) => (
+                <motion.div
+                  key={test.test_id}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.3, delay: i * 0.03 }}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-white/[0.02] transition-colors"
+                >
+                  <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                    test.status === 'PASS' ? 'bg-emerald-400' :
+                    test.status === 'FAIL' ? 'bg-red-400' :
+                    'bg-yellow-400'
+                  }`} />
+                  <span className="text-gray-500 text-[10px] font-mono w-20 truncate">{test.test_id}</span>
+                  <span className="text-gray-400 text-[10px] flex-1 truncate">{test.category}</span>
+                  <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                    test.status === 'PASS' ? 'text-emerald-400 bg-emerald-950/50' :
+                    test.status === 'FAIL' ? 'text-red-400 bg-red-950/50' :
+                    'text-yellow-400 bg-yellow-950/50'
+                  }`}>{test.status}</span>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+            {tests.length === 0 && (
+              <div className="text-gray-600 text-center py-16 flex flex-col items-center gap-3">
+                <Clock size={20} className="text-gray-700" />
+                <span className="text-[10px] uppercase tracking-widest">Generating scenarios...</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -140,16 +185,15 @@ export default function Overview({ runId }: { runId: string | null }) {
   );
 }
 
-function MetricCard({ title, value, icon: Icon, color = 'text-white', glow = '' }: any) {
+function MetricCard({ title, value, icon: Icon, color = 'text-white', accent = 'border-white/5' }: any) {
   return (
-    <div className={`bg-[#0a0a0a] border border-white/5 rounded-2xl p-6 flex items-center justify-between relative overflow-hidden group hover:border-white/20 transition-all ${glow}`}>
-      <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-      <div className="z-10">
-        <p className="text-gray-500 text-xs font-bold tracking-widest uppercase mb-2">{title}</p>
-        <p className={`text-4xl font-black font-mono tracking-tighter ${color}`}>{value}</p>
+    <div className={`bg-[#0a0a0a] border ${accent} rounded-xl p-4 flex items-center justify-between group hover:bg-[#0d0d0d] transition-colors`}>
+      <div>
+        <p className="text-gray-600 text-[10px] font-semibold tracking-widest uppercase mb-1">{title}</p>
+        <p className={`text-2xl font-bold font-mono tracking-tight ${color}`}>{value}</p>
       </div>
-      <div className={`p-4 rounded-xl bg-black border border-white/5 z-10 shadow-lg ${color}`}>
-        <Icon size={24} />
+      <div className={`p-2.5 rounded-lg bg-black/50 border border-white/5 ${color}`}>
+        <Icon size={16} />
       </div>
     </div>
   );

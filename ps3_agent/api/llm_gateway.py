@@ -26,10 +26,12 @@ logger = logging.getLogger("llm_gateway")
 
 class LLMGateway:
     """
-    Unified gateway for Gemini LLM calls featuring:
+    Unified gateway for LLM calls featuring:
     - diskcache-based response caching
-    - 429 rate-limit backoff with jitter
-    - 503 capacity fallback chain (3.6 -> 1.5 -> 2.0-exp)
+    - Ollama as primary LLM
+    - Gemini as fallback
+    - 429 rate-limit backoff with jitter (for Gemini)
+    - 503 capacity fallback chain
     - asyncio.Semaphore concurrency limits
     - Replay mode for absolute demo safety
     """
@@ -39,11 +41,26 @@ class LLMGateway:
         self.replay_mode = replay_mode
         self.api_key = os.environ.get("GEMINI_API_KEY", "")
         self.fallback_chain = ["gemini-3.7-flash", "gemini-3.8-flash", "gemini-3.5-flash"]
+        self.ollama_model = "qwen2.5:1.5b"
+        self.ollama_url = "http://localhost:11434/api/generate"
         
     def _hash_prompt(self, model: str, prompt: str) -> str:
         data = f"{model}::{prompt}".encode("utf-8")
         return hashlib.sha256(data).hexdigest()
         
+    async def _call_ollama(self, prompt: str, model: str) -> Optional[str]:
+        """Calls the local Ollama API."""
+        payload = {"model": model, "prompt": prompt, "stream": False}
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(self.ollama_url, json=payload, timeout=30.0)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return data.get("response")
+        except Exception as e:
+            logger.warning(f"[Ollama] Failed to call Ollama: {e}")
+        return None
+
     async def generate_content(self, prompt: str, default_fallback: str = "") -> httpx.Response:
         """
         Main entry point for generating content.
@@ -52,6 +69,11 @@ class LLMGateway:
         async with self.semaphore:
             # Replay Mode Safety Net
             if self.replay_mode and llm_cache:
+                # Check Ollama cache first in replay mode
+                cache_key = self._hash_prompt(self.ollama_model, prompt)
+                if cache_key in llm_cache:
+                    logger.info(f"[Replay Mode] Serving cached response for {self.ollama_model}")
+                    return self._mock_response(200, llm_cache[cache_key])
                 for model in self.fallback_chain:
                     cache_key = self._hash_prompt(model, prompt)
                     if cache_key in llm_cache:
@@ -60,11 +82,28 @@ class LLMGateway:
                 logger.warning(f"[Replay Mode] Cache miss for prompt. Returning safe default.")
                 return self._mock_response(200, default_fallback)
 
+            # Try Ollama Primary
+            cache_key = self._hash_prompt(self.ollama_model, prompt)
+            if llm_cache and cache_key in llm_cache:
+                logger.info(f"[Cache Hit] Returning cached response for {self.ollama_model}")
+                return self._mock_response(200, llm_cache[cache_key])
+                
+            logger.info(f"Attempting Ollama with model {self.ollama_model}")
+            ollama_text = await self._call_ollama(prompt, self.ollama_model)
+            if ollama_text is not None:
+                if llm_cache:
+                    llm_cache[cache_key] = ollama_text
+                return self._mock_response(200, ollama_text)
+                
+            logger.warning("Ollama failed. Falling back to Gemini.")
+
             if not self.api_key:
                 logger.warning("No GEMINI_API_KEY found.")
+                if default_fallback:
+                    return self._mock_response(200, default_fallback)
                 return self._mock_response(500, "No API Key configured.")
 
-            # Standard Execution with Fallbacks
+            # Standard Execution with Fallbacks (Gemini)
             for model in self.fallback_chain:
                 cache_key = self._hash_prompt(model, prompt)
                 
