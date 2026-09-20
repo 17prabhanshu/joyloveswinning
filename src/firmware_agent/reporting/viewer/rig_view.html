@@ -1334,10 +1334,36 @@
   }
 
   // Real data wiring boot logic
+  // Priority: 1) URL params (server mode), 2) inline <script> blocks (static HTML mode), 3) demo
+  const urlParams = new URLSearchParams(window.location.search);
+  const traceUrl = urlParams.get('trace-url');
+  const compareUrlA = urlParams.get('compare-url-a');
+  const compareUrlB = urlParams.get('compare-url-b');
+
   const inlineTraceEl = document.getElementById('trace-data');
   const inlineCompareEl = document.getElementById('trace-data-compare');
-  
-  if (inlineCompareEl) {
+
+  if (traceUrl) {
+      // Server mode: fetch trace from API endpoint
+      fetch(traceUrl)
+          .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+          .then(data => loadTrace(data, false))
+          .catch(err => {
+              console.error("Failed to fetch trace:", err);
+              loadTrace(makeDemoTrace(), true);
+          });
+  } else if (compareUrlA && compareUrlB) {
+      // Server comparison mode: fetch both traces
+      Promise.all([
+          fetch(compareUrlA).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+          fetch(compareUrlB).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+      ])
+      .then(([trA, trB]) => loadCompare(trA, trB))
+      .catch(err => {
+          console.error("Failed to fetch compare traces:", err);
+          loadTrace(makeDemoTrace(), true);
+      });
+  } else if (inlineCompareEl) {
       try {
           const arr = JSON.parse(inlineCompareEl.textContent);
           loadCompare(arr[0], arr[1]);
