@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Code2, BrainCircuit, Wrench, Check } from 'lucide-react';
+import { X, Code2, BrainCircuit, Wrench, Check, Terminal } from 'lucide-react';
 
 export default function TestLab({ runId }: { runId: string | null }) {
   const [tests, setTests] = useState<any[]>([]);
@@ -192,81 +192,77 @@ export default function TestLab({ runId }: { runId: string | null }) {
                     </div>
                     
                     {loadingAnalysis ? (
-                      <div className="flex flex-col items-center justify-center py-16 gap-8 relative overflow-hidden rounded-2xl border border-blue-500/10 bg-black/40 shadow-[inset_0_0_50px_rgba(59,130,246,0.05)]">
-                        <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.05)_1px,transparent_1px)] bg-[size:20px_20px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-30"></div>
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-50 animate-[shimmer_2s_infinite]"></div>
+                        <div className="flex flex-col items-center justify-center py-16 gap-8 relative overflow-hidden rounded-2xl border border-cyan-500/30 bg-[#001111] shadow-[inset_0_0_80px_rgba(34,211,238,0.1)]">
+                        {/* CRT Scanline overlay */}
+                        <div className="absolute inset-0 pointer-events-none z-20 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%] opacity-50"></div>
+                        <div className="absolute top-0 left-0 w-full h-1 bg-cyan-400/50 shadow-[0_0_20px_rgba(34,211,238,1)] animate-[shimmer_3s_infinite] z-20"></div>
                         
                         <div className="relative z-10">
-                          <div className="absolute inset-0 bg-cyan-500/20 blur-2xl rounded-full animate-pulse"></div>
-                          <div className="relative w-24 h-24 border border-blue-500/20 rounded-full flex items-center justify-center bg-blue-950/30 backdrop-blur-sm">
-                            <div className="absolute inset-0 border-t-2 border-cyan-400 rounded-full animate-[spin_2s_linear_infinite]"></div>
-                            <div className="absolute inset-2 border-r-2 border-blue-400/50 rounded-full animate-[spin_3s_linear_infinite_reverse]"></div>
-                            <BrainCircuit size={36} className="text-cyan-400 animate-pulse drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]" />
+                          <div className="absolute inset-0 bg-cyan-500/40 blur-[40px] rounded-full animate-pulse"></div>
+                          <div className="relative w-24 h-24 border-2 border-cyan-500/50 rounded-none flex items-center justify-center bg-black/60 shadow-[0_0_30px_rgba(34,211,238,0.3)]">
+                            <div className="absolute inset-0 border-t-4 border-cyan-400 animate-[spin_1.5s_linear_infinite]"></div>
+                            <Terminal size={40} className="text-cyan-400 animate-pulse drop-shadow-[0_0_15px_rgba(34,211,238,0.8)]" />
                           </div>
                         </div>
                         
                         <div className="flex flex-col items-center gap-4 text-center relative z-10">
-                          <p className="text-cyan-300 font-mono text-sm tracking-[0.2em] uppercase font-bold bg-blue-900/30 px-6 py-2 rounded-full border border-cyan-500/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]">
-                            Neural Analysis Active
+                          <p className="text-cyan-300 font-mono text-sm tracking-[0.3em] uppercase font-bold bg-cyan-950/80 px-6 py-2 border border-cyan-500/50 shadow-[0_0_20px_rgba(34,211,238,0.2)]">
+                            [ PROCESSING NEURAL PAYLOAD ]
                           </p>
-                          <div className="text-cyan-100/60 text-xs font-mono space-y-2 mt-2">
-                            <p className="animate-[pulse_1s_infinite]">&gt; Injecting execution state into LLM context window...</p>
-                            <p className="animate-[pulse_1s_infinite_100ms] opacity-70">&gt; Correlating memory faults with AST boundaries...</p>
-                            <p className="animate-[pulse_1s_infinite_200ms] opacity-50">&gt; Synthesizing vulnerability remediation payload...</p>
+                          <div className="text-cyan-400/80 text-xs font-mono space-y-2 mt-4 text-left border-l-2 border-cyan-500/50 pl-4">
+                            <p className="animate-[pulse_1s_infinite] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">$ INJECT_EXECUTION_STATE --verbose</p>
+                            <p className="animate-[pulse_1s_infinite_100ms] opacity-80">$ CORRELATE_FAULTS --target=AST_BOUNDARIES</p>
+                            <p className="animate-[pulse_1s_infinite_200ms] opacity-60">$ SYNTHESIZE_REMEDIATION_MATRIX...</p>
                           </div>
                         </div>
                       </div>
                     ) : analysis ? (
                       <motion.div 
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="space-y-8"
+                        initial={{ opacity: 0, scale: 0.98 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="bg-[#050b14] border border-cyan-500/20 p-8 rounded-2xl space-y-6 relative overflow-hidden shadow-2xl"
                       >
-                        <div>
-                          <h4 className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-3">Vulnerability Explanation</h4>
-                          <p className="text-gray-200 text-sm leading-relaxed bg-black/40 p-5 rounded-xl border border-white/5 shadow-inner">
-                            {analysis.analysis}
-                          </p>
-                        </div>
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none"></div>
                         
                         <div>
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2 text-emerald-400 font-bold uppercase tracking-widest text-xs">
-                              <Code2 size={16} />
-                              Suggested Remediation Patch
-                            </div>
-                            <button 
-                              onClick={handlePatch}
-                              disabled={patching || patchSuccess}
-                              className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${
-                                patchSuccess 
-                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50' 
-                                  : 'bg-emerald-500 text-black hover:bg-emerald-400 hover:scale-105 shadow-[0_0_15px_rgba(16,185,129,0.4)]'
-                              }`}
-                            >
-                              {patchSuccess ? (
-                                <>
-                                  <Check size={14} /> Patch Applied
-                                </>
-                              ) : patching ? (
-                                <>
-                                  <div className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin"></div>
-                                  Patching...
-                                </>
-                              ) : (
-                                <>
-                                  <Wrench size={14} /> Auto-Patch Codebase
-                                </>
-                              )}
-                            </button>
+                          <h4 className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-3">Vulnerability Explanation</h4>
+                          <div className="prose prose-invert prose-sm max-w-none text-gray-300 relative z-10 leading-relaxed tracking-wide font-light bg-black/40 p-5 rounded-xl border border-white/5 shadow-inner">
+                            {analysis.analysis}
                           </div>
-                          <div className="relative group">
-                            <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500/20 to-blue-500/20 rounded-xl blur opacity-30 group-hover:opacity-60 transition duration-500"></div>
-                            <pre className="relative bg-[#050505] p-5 rounded-xl overflow-x-auto border border-white/10 font-mono text-xs text-emerald-400/90 shadow-2xl">
+                        </div>
+                        
+                        {analysis.suggested_fix && (
+                          <div className="mt-8 border border-cyan-500/30 rounded-xl overflow-hidden bg-black/60 shadow-[0_0_30px_rgba(34,211,238,0.1)] relative group">
+                            <div className="bg-cyan-950/50 px-5 py-3 border-b border-cyan-500/30 flex justify-between items-center backdrop-blur-md">
+                              <div className="flex items-center gap-3">
+                                <Code2 size={16} className="text-cyan-400" />
+                                <span className="text-xs font-bold text-cyan-300 uppercase tracking-widest">Remediation Payload</span>
+                              </div>
+                              <button 
+                                onClick={handlePatch}
+                                disabled={patching || patchSuccess}
+                                className={`flex items-center gap-2 px-4 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition-all shadow-md ${
+                                  patchSuccess 
+                                    ? 'bg-green-500/20 text-green-400 border border-green-500/50' 
+                                    : patching
+                                      ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50 cursor-wait'
+                                      : 'bg-blue-600 text-white hover:bg-cyan-500 hover:shadow-[0_0_15px_rgba(34,211,238,0.4)] border border-transparent'
+                                }`}
+                              >
+                                {patchSuccess ? (
+                                  <><Check size={14} /> System Patched</>
+                                ) : patching ? (
+                                  <><div className="w-3 h-3 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div> Patching...</>
+                                ) : (
+                                  <><Wrench size={14} /> Auto-Patch Codebase</>
+                                )}
+                              </button>
+                            </div>
+                            <pre className="p-5 overflow-x-auto text-sm font-mono text-cyan-100/90 scrollbar-custom m-0 bg-transparent relative z-10">
                               <code>{analysis.suggested_fix}</code>
                             </pre>
                           </div>
-                        </div>
+                        )}
                       </motion.div>
                     ) : (
                       <p className="text-gray-500 text-sm italic py-8 text-center bg-black/20 rounded-xl border border-white/5">Failed to fetch analysis payload.</p>

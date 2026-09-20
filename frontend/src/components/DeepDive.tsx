@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
-import { Terminal, Code, Cpu, Bot, User } from 'lucide-react';
+import { Terminal, Code, Cpu, Bot } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const renderMessage = (text: string) => {
@@ -133,12 +133,16 @@ export default function DeepDive({ runId }: { runId: string | null }) {
                 key={i} 
                 className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
               >
-                <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center border shadow-sm ${
+                <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center border shadow-sm overflow-hidden ${
                   msg.role === 'user' 
-                    ? 'bg-blue-600/20 border-blue-500/50 text-blue-400' 
+                    ? 'bg-blue-600/20 border-blue-500/50' 
                     : 'bg-cyan-900/30 border-cyan-500/50 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.2)]'
                 }`}>
-                  {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
+                  {msg.role === 'user' ? (
+                    <img src="https://api.dicebear.com/7.x/cats/svg?seed=Meow&backgroundColor=transparent" alt="User Cat" className="w-full h-full object-cover" />
+                  ) : (
+                    <Bot size={16} />
+                  )}
                 </div>
                 
                 <div className={`max-w-[75%] rounded-2xl p-4 text-sm shadow-md ${

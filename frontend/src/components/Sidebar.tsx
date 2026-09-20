@@ -1,4 +1,5 @@
-import { Activity, Beaker, GitGraph, AlertTriangle, GitMerge, Cpu, TerminalSquare } from 'lucide-react';
+import { Activity, Beaker, GitGraph, AlertTriangle, GitMerge, Cpu, TerminalSquare, Sun, Moon } from 'lucide-react';
+import { useState } from 'react';
 
 interface SidebarProps {
   activeTab: string;
@@ -17,6 +18,14 @@ const TABS = [
 ];
 
 export default function Sidebar({ activeTab, setActiveTab, runStatus }: SidebarProps) {
+  const [theme, setTheme] = useState('dark');
+
+  const toggleTheme = () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+    document.documentElement.setAttribute('data-theme', newTheme);
+  };
+
   return (
     <aside className="w-64 bg-agent-800 border-r border-agent-700 flex flex-col h-full shadow-2xl relative z-20">
       <div className="p-6 border-b border-agent-700">
@@ -48,7 +57,7 @@ export default function Sidebar({ activeTab, setActiveTab, runStatus }: SidebarP
         })}
       </nav>
 
-      <div className="p-4 border-t border-agent-700">
+      <div className="p-4 border-t border-agent-700 space-y-4">
         <div className="bg-agent-900 rounded-md p-4 flex flex-col gap-2 border border-agent-700/50">
           <span className="text-xs text-gray-500 font-mono uppercase">System Status</span>
           <div className="flex items-center gap-2">
@@ -56,6 +65,14 @@ export default function Sidebar({ activeTab, setActiveTab, runStatus }: SidebarP
             <span className="text-sm font-medium capitalize">{runStatus?.status || 'Idle'}</span>
           </div>
         </div>
+        
+        <button 
+          onClick={toggleTheme}
+          className="w-full flex items-center justify-center gap-2 py-2 rounded border border-agent-700/50 text-gray-400 hover:text-white hover:bg-agent-700 transition-colors"
+        >
+          {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          <span className="text-xs font-mono uppercase">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+        </button>
       </div>
     </aside>
   );
