@@ -1,83 +1,128 @@
-# Black Box Hackathon PS3: AI Agent for Autonomous Embedded Firmware Testing
+# Autonomous Firmware Red-Team Agent
 
-## Overview
-This is a COMPLETE working implementation of an AI-powered autonomous embedded firmware testing platform, designed as an additive layer on top of the **LabWired Core** simulator.
+An autonomous firmware red-team agent that actively searches for unexpected embedded behavior in virtual hardware.
 
-The system is fully autonomous. It:
-1. **Analyzes C/C++ source code** using `tree-sitter` to extract functions, control flow, conditions, IO operations (GPIO, UART, sensors).
-2. **Builds a Behavior Graph** representing the firmware's internal logic, boundary conditions, and state transitions.
-3. **Automatically generates test scenarios** (Boundary conditions, Fault injection, State transitions) via deterministic test generators.
-4. **Executes tests on real MCU silicon models** using the LabWired Core simulator.
-5. **Deterministically verifies behavior** by observing physical outputs (UART logs, GPIO pin levels) against expected behavior.
-6. **Localizes failures** to the specific source code lines and proposes diagnoses.
-7. **Generates self-contained HTML reports**.
+> **We don't just generate tests. We decide what is worth testing next.**
 
-The LLM **NEVER** decides if a test passed or failed. "AI proposes, Tools execute, Deterministic Verification decides."
+## Problem
+
+Embedded firmware is difficult to test because behavior depends on code, hardware, state, timing, and unexpected inputs. Traditional testing requires engineers to manually write test cases, set up hardware, and investigate failures.
+
+## Solution
+
+Our agent autonomously explores firmware behavior in virtual hardware using a closed-loop architecture:
+
+```
+Analyze → Model → Hunt → Plan → Execute → Verify → Diagnose → Learn → Repeat
+```
+
+The most important architectural principle:
+
+> **AI proposes. Tools execute. Deterministic verification decides. Evidence supports every conclusion.**
+
+The LLM/agent is **never** the final authority for PASS/FAIL.
 
 ## Architecture
 
-The project is structured according to the master plan:
-
-* `ps3/analyzer/`: Uses `tree-sitter-c` to parse C/C++ firmware and build Pydantic behavior models.
-* `ps3/generators/`: Contains Boundary, Fault, State, and Z3 test case generators.
-* `ps3/simulator/`: A modular simulator adapter pattern with a full integration for the LabWired CLI.
-* `ps3/verification/`: The deterministic assertion engine that evaluates evidence (UART, GPIO).
-* `ps3/execution/`: The `TestRunner` orchestrating generation, simulation, and verification.
-* `ps3/diagnosis/`: Maps test failures back to source code.
-* `ps3/reporting/`: Generates JSON and rich HTML reports.
-* `ps3/agent/`: The central `AutonomousAgent` loop tying the pipeline together.
-* `ps3/cli.py`: The `click` based command-line interface.
-
-## Getting Started
-
-### 1. Requirements
-* Python 3.9+
-* LabWired CLI (`labwired`) installed and in your PATH.
-* (Optional) `arm-none-eabi-gcc` to compile your own firmware ELFs.
-
-### 2. Installation
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
+```
+┌─────────────────┐
+│   FIRMWARE C     │
+└────────┬────────┘
+         ▼
+┌─────────────────┐     ┌─────────────────┐
+│  CODE READER    │────▶│  BEHAVIOR GRAPH  │
+│  (AST Parser)   │     │  (States, I/O)   │
+└────────┬────────┘     └────────┬────────┘
+         ▼                       ▼
+┌─────────────────────────────────────────┐
+│            RISK ENGINE                   │
+│  Boundary · Assumption · State · Fault  │
+│  Timing · Combination · Counterexample  │
+└────────────────┬────────────────────────┘
+                 ▼
+┌─────────────────┐     ┌─────────────────┐
+│ ADAPTIVE PLANNER│────▶│ SCENARIO ENGINE  │
+│ "What next?"    │     │ Test generation  │
+└────────┬────────┘     └────────┬────────┘
+         ▼                       ▼
+┌─────────────────────────────────────────┐
+│         SIMULATOR ADAPTER                │
+│  ┌──────────┐    ┌──────────┐           │
+│  │Determin. │    │  Renode  │           │
+│  │Simulator │    │ Backend  │           │
+│  └──────────┘    └──────────┘           │
+└────────────────┬────────────────────────┘
+                 ▼
+┌─────────────────┐
+│   VERIFIER      │──── PASS / FAIL / ERROR
+│ (Deterministic) │
+└────────┬────────┘
+         ▼ (on FAIL)
+┌─────────────────┐     ┌─────────────────┐
+│  DIAGNOSER      │────▶│   MINIMIZER     │
+│  Root cause     │     │  Delta-debug    │
+└────────┬────────┘     └────────┬────────┘
+         ▼                       ▼
+┌─────────────────┐     ┌─────────────────┐
+│  REGRESSION     │     │ ADAPTIVE NEXT   │
+│  Memory         │     │ "What now?"     │
+└─────────────────┘     └────────┬────────┘
+                                 │
+                                 └──▶ LOOP
 ```
 
-### 3. Usage
-
-#### Run the End-to-End Demo
-```bash
-labwired-agent demo
-```
-This runs the full agent pipeline on the demo firmware (`firmware/demos/fan_controller.c`), which contains 5 intentional bugs (wrong boundaries, lack of sensor disconnect handling, negative temperature acceptance, off-by-one errors). The agent will statically analyze it, generate 21 boundary and fault tests, and execute them.
-
-*(Note: Because the demo uses the raw `.c` file and not a compiled ELF, the execution phase will accurately fail the tests. In a real environment, you provide the compiled `.elf`.)*
-
-#### Run on a Real Firmware ELF
-```bash
-labwired-agent test path/to/firmware.elf \
-  --chip stm32f103 \
-  --autonomous \
-  --max-iterations 5 \
-  --output-dir artifacts
-```
-
-#### Generate Reports
-```bash
-labwired-agent report --output-dir artifacts
-```
-
-## Integration Tests
-To prove the deterministic pipeline works against real hardware models, run the integration suite. It executes a known-good pre-compiled ELF (`uart-ok-thumbv7m.elf`) through the real LabWired simulator and asserts the deterministic Verification Engine correctly evaluates the output:
+## Quick Start
 
 ```bash
-pytest tests/integration/test_labwired_integration.py -v
+# Install
+pip install -e .
+
+# Check system health
+ps3-agent doctor
+
+# Run the demo (buggy fan controller firmware)
+ps3-agent demo
+
+# Start the web UI
+ps3-agent ui
+# Then open http://localhost:8080
+
+# Analyze firmware without running tests
+ps3-agent analyze path/to/firmware.c
 ```
 
-## Hackathon PS3 Completion Checklist
-- [x] Integrate with LabWired without reinventing it.
-- [x] Tree-sitter C/C++ static analysis and behavior graph.
-- [x] Pydantic-based deterministic test generation.
-- [x] Real execution through LabWired.
-- [x] Deterministic Verification Engine (no LLM pass/fail hallucinations).
-- [x] JSON and HTML reporting.
-- [x] Fully functional CLI.
+## Demo
+
+The demo uses a temperature-controlled fan firmware (`fixtures/firmware/fan_controller.c`) with 5 intentional defects:
+
+1. **Boundary Off-by-One**: `if (temperature > 80)` should be `>=`
+2. **Missing Sensor Guard**: Disconnected sensor returns -999, treated as cold
+3. **No Range Validation**: Out-of-range values (5000°C) accepted
+4. **No Debounce**: Rapid fan state changes cause back-EMF
+5. **Unsafe Recovery**: First reading after reconnect is blindly trusted
+
+The agent discovers these autonomously through systematic risk hunting and adaptive test selection.
+
+## Key Features
+
+- **Boundary Hunter**: Finds threshold conditions and tests exact boundaries
+- **Assumption Hunter**: Discovers implicit assumptions (sensor always valid, etc.)
+- **State Hunter**: Tests state sequences and transition edge cases
+- **Fault Injector**: Sensor disconnect, invalid values, out-of-range
+- **Adaptive Planner**: Uses previous results to select the next test
+- **Deterministic Verifier**: Hardware evidence decides PASS/FAIL, never the LLM
+- **Failure Diagnosis**: Maps failures to source code lines
+- **Delta-Debugging Minimizer**: Reduces failing scenarios to minimal reproducers
+- **Regression Memory**: Automatically creates regression tests from failures
+
+## Third-Party Attribution
+
+See [THIRD_PARTY.md](THIRD_PARTY.md) for full attribution.
+
+- **FirmwareHive** (Apache 2.0) — Conceptual inspiration for agent architecture
+- **Renode** (MIT) — Virtual hardware simulation backend
+- **Fuzzware** — Conceptual inspiration for MMIO exploration
+
+## License
+
+Apache 2.0

@@ -1,0 +1,2 @@
+[console_scripts]
+ps3-agent = ps3_agent.cli:main
