@@ -278,28 +278,45 @@ async def chat_with_agent(run_id: str, req: ChatRequest):
     if run_id not in active_runs:
         raise HTTPException(404, "Run not found")
     agent = active_runs[run_id]["agent"]
-    msg_lower = req.message.lower()
+    msg = req.message
     
-    # --- Lightning Fast Heuristic NLP (0ms latency) ---
-    if "fail" in msg_lower or "error" in msg_lower or "bug" in msg_lower:
-        if not agent.failures:
-            return {"response": "[Qwen-2.5-Coder] I haven't encountered any test failures yet. All simulated boundaries are holding up so far."}
+    # Context builder for LLM
+    context_str = f"You are the PS3 Autonomous Red-Team Agent, an expert in embedded firmware security and C programming. You are currently testing a C firmware file.\n\n"
+    
+    if agent.failures:
         f = agent.failures[-1]
         diag = f.get("diagnosis")
         cause = diag.cause_hypothesis if diag else "state mismatch"
-        loc = f" around {diag.source_location}" if diag and getattr(diag, 'source_location', None) else ""
-        return {"response": f"[Qwen-2.5-Coder] Looking at {f['scenario'].test_id}, testing '{f['scenario'].target}'. Expected: '{f['scenario'].expected_outcome}'. However, {cause}{loc}."}
+        context_str += f"Context: We recently ran Test {f['scenario'].test_id} targeting '{f['scenario'].target}'. It FAILED.\n"
+        context_str += f"Expected behavior: '{f['scenario'].expected_outcome}'.\n"
+        context_str += f"Our Diagnosis: {cause}.\n\n"
+    elif agent.test_results:
+        context_str += f"Context: We have run {len(agent.test_results)} tests successfully without critical failures so far.\n\n"
         
-    if "risk" in msg_lower or "vulnerabilit" in msg_lower:
-        if not agent.risks:
-            return {"response": "[Qwen-2.5-Coder] I am currently building the AST. No risks mapped yet."}
-        return {"response": f"[Qwen-2.5-Coder] I found {len(agent.risks)} architectural risks. I flagged them because triggering these thresholds directly alters hardware state."}
-            
-    if "code" in msg_lower or "logic" in msg_lower:
-        files = ", ".join(Path(f).name for f in agent.project.source_files)
-        return {"response": f"[Qwen-2.5-Coder] I parsed {files}, extracted the control flow graph, and identified MMIO. I use this to generate failure scenarios."}
+    if agent.risks:
+        context_str += f"We have also mapped {len(agent.risks)} architectural risks in the AST (Abstract Syntax Tree) related to boundary conditions and hardware I/O.\n\n"
 
-    return {"response": f"[Qwen-2.5-Coder] I am monitoring execution. I ran {len(agent.test_results)} tests and found {len(agent.failures)} anomalies."}
+    prompt = f"{context_str}User Question: {msg}\n\nAnswer concisely and technically as the AI agent. Do not use markdown headers, just plain text or short lists."
+
+    try:
+        import httpx
+        import os
+        GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={GEMINI_API_KEY}"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}]
+        }
+        
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, json=payload, timeout=10.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                text = data["candidates"][0]["content"]["parts"][0]["text"]
+                return {"response": f"[Gemini Agent] {text.strip()}"}
+            else:
+                return {"response": f"[Agent] I tried to think, but my cognitive engine returned an error: {resp.text}"}
+    except Exception as e:
+        return {"response": f"[Agent] Cognitive engine offline. Error: {str(e)}"}
 
 
 # ── Firmware Source ───────────────────────────────────────────
