@@ -30,6 +30,35 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
 
 # ── App ───────────────────────────────────────────────────────
+
+async def call_gemini(prompt: str) -> httpx.Response:
+    import httpx
+    import os
+    import asyncio
+    GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    
+    models = ["gemini-3.6-flash", "gemini-1.5-flash", "gemini-2.0-flash-exp"]
+    
+    async with httpx.AsyncClient() as client:
+        resp = None
+        for model in models:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
+            for attempt in range(2):
+                try:
+                    resp = await client.post(url, json=payload, timeout=180.0)
+                    if resp.status_code == 200:
+                        return resp
+                    elif resp.status_code == 503:
+                        await asyncio.sleep(1)
+                        continue
+                    else:
+                        break  # try next model
+                except Exception:
+                    break  # try next model
+        return resp
+
+
 app = FastAPI(title="JOY Autonomous Firmware Red-Team Agent", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
@@ -251,30 +280,20 @@ Format your response strictly as JSON with two keys:
 """
     
     try:
-        import httpx
-        import os
         import json
-        GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={GEMINI_API_KEY}"
+        resp = await call_gemini(prompt)
         
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                url, 
-                json={"contents": [{"parts": [{"text": prompt}]}]}, 
-                timeout=180.0
-            )
-            
-            if resp.status_code == 200:
-                text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-                # Clean markdown json blocks if present
-                text = text.replace("```json", "").replace("```", "").strip()
-                result = json.loads(text)
-                return {
-                    "analysis": result.get("root_cause", "Analysis failed to parse."),
-                    "suggested_fix": result.get("code_fix", "// No code fix provided.")
-                }
-            else:
-                return {"analysis": f"Error calling Gemini: {resp.text}", "suggested_fix": ""}
+        if resp.status_code == 200:
+            text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+            # Clean markdown json blocks if present
+            text = text.replace("```json", "").replace("```", "").strip()
+            result = json.loads(text)
+            return {
+                "analysis": result.get("root_cause", "Analysis failed to parse."),
+                "suggested_fix": result.get("code_fix", "// No code fix provided.")
+            }
+        else:
+            return {"analysis": f"Error calling Gemini: {resp.text}", "suggested_fix": ""}
     except Exception as e:
         return {"analysis": f"Analysis failed: {str(e)}", "suggested_fix": "// API Error"}
 
@@ -371,29 +390,19 @@ Suggested Fix to Apply:
 
 Return ONLY the complete, fully updated C code. Do not include any explanations. Do not wrap it in ```c markdown blocks. Just return the raw C code so it can be saved directly to a file.
 """
-        import httpx
-        import os
-        GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={GEMINI_API_KEY}"
+        resp = await call_gemini(prompt)
         
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                url, 
-                json={"contents": [{"parts": [{"text": prompt}]}]}, 
-                timeout=180.0
-            )
+        if resp.status_code == 200:
+            data = resp.json()
+            patched_code = data["candidates"][0]["content"]["parts"][0]["text"]
+            # Clean markdown blocks if Gemini stubbornly includes them
+            patched_code = patched_code.replace("```c", "").replace("```", "").strip()
             
-            if resp.status_code == 200:
-                data = resp.json()
-                patched_code = data["candidates"][0]["content"]["parts"][0]["text"]
-                # Clean markdown blocks if Gemini stubbornly includes them
-                patched_code = patched_code.replace("```c", "").replace("```", "").strip()
-                
-                # Save the patched code back to the file
-                Path(firmware_path).write_text(patched_code, encoding="utf-8")
-                return {"status": "success", "message": "Firmware patched successfully."}
-            else:
-                raise HTTPException(500, f"Failed to generate patch: {resp.text}")
+            # Save the patched code back to the file
+            Path(firmware_path).write_text(patched_code, encoding="utf-8")
+            return {"status": "success", "message": "Firmware patched successfully."}
+        else:
+            raise HTTPException(500, f"Failed to generate patch: {resp.text}")
     except Exception as e:
         raise HTTPException(500, f"Patch error: {str(e)}")
 
