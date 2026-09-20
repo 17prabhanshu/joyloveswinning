@@ -257,7 +257,7 @@ class AgentLoop:
             return candidate, execution, verification, result_entry
 
         futures = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
             for candidate in selected[:self.max_tests]:
                 futures.append(executor.submit(run_candidate, candidate))
                 
