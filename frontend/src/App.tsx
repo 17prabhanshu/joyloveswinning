@@ -59,6 +59,35 @@ function App() {
     }
   };
 
+const FloatingParticles = () => {
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-30 z-0">
+      {[...Array(20)].map((_, i) => (
+        <motion.div
+          key={i}
+          className="absolute rounded-full bg-cyan-500/20 blur-md"
+          style={{
+            width: Math.random() * 100 + 50 + 'px',
+            height: Math.random() * 100 + 50 + 'px',
+            left: Math.random() * 100 + '%',
+            top: Math.random() * 100 + '%',
+          }}
+          animate={{
+            x: [Math.random() * 100 - 50, Math.random() * 100 - 50, Math.random() * 100 - 50],
+            y: [Math.random() * 100 - 50, Math.random() * 100 - 50, Math.random() * 100 - 50],
+            scale: [1, 1.2, 1],
+          }}
+          transition={{
+            duration: Math.random() * 10 + 15,
+            repeat: Infinity,
+            ease: "linear"
+          }}
+        />
+      ))}
+    </div>
+  );
+};
+
   return (
     <AnimatePresence mode="wait">
       {!runId ? (
@@ -74,15 +103,20 @@ function App() {
           className="flex h-screen bg-[#0a0a0a] text-white font-sans overflow-hidden"
         >
           <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} runStatus={runStatus} />
-          <main className="flex-1 overflow-auto bg-[#050505] relative shadow-[-10px_0_30px_rgba(0,0,0,0.5)]">
+          <main className="flex-1 overflow-auto bg-[#050505] relative shadow-[-10px_0_30px_rgba(0,0,0,0.5)] border-l border-white/5">
+            <FloatingParticles />
+            {/* Ambient Background Glows */}
+            <div className="absolute top-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-500/10 blur-[120px] rounded-full pointer-events-none z-0"></div>
+            <div className="absolute bottom-[-20%] left-[-10%] w-[50%] h-[50%] bg-purple-500/10 blur-[120px] rounded-full pointer-events-none z-0"></div>
+            
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -15 }}
-                transition={{ duration: 0.3, ease: 'easeOut' }}
-                className="h-full"
+                initial={{ opacity: 0, y: 20, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -20, scale: 0.98 }}
+                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                className="h-full relative z-10"
               >
                 {renderContent()}
               </motion.div>
