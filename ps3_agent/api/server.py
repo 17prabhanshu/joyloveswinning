@@ -54,6 +54,7 @@ ws_connections: dict[str, list[WebSocket]] = {}
 # ── Models ────────────────────────────────────────────────────
 class CreateRunRequest(BaseModel):
     firmware_path: Optional[str] = None
+    code: Optional[str] = None
     max_tests: int = 30
 
 
@@ -77,6 +78,14 @@ async def health():
 @app.post("/api/runs")
 async def create_run(req: CreateRunRequest, background_tasks: BackgroundTasks):
     firmware_path = req.firmware_path or str(FIXTURES_DIR / "fan_controller.c")
+
+    if req.code and req.code.strip():
+        # If user pasted code, create a temp file for it
+        import tempfile
+        tmp = tempfile.NamedTemporaryFile(suffix=".c", delete=False, mode="w")
+        tmp.write(req.code)
+        tmp.close()
+        firmware_path = tmp.name
 
     if not Path(firmware_path).exists():
         raise HTTPException(404, f"Firmware not found: {firmware_path}")
@@ -269,48 +278,97 @@ async def chat_with_agent(run_id: str, req: ChatRequest):
     if run_id not in active_runs:
         raise HTTPException(404, "Run not found")
     agent = active_runs[run_id]["agent"]
-    msg = req.message.lower()
+    msg = req.message
     
-    # 1. Check for failure inquiries (e.g. "why did test X fail?")
-    if "fail" in msg or "error" in msg or "bug" in msg:
+    # Context builder for LLM
+    context_str = f"You are the PS3 Autonomous Red-Team Agent. You are testing a C firmware.\n"
+    if agent.failures:
+        f = agent.failures[-1]
+        context_str += f"Most recent failure: Test {f['scenario'].test_id} failed. Expected: {f['scenario'].expected_outcome}.\n"
+    if agent.risks:
+        context_str += f"Found {len(agent.risks)} risks, including boundary conditions on hardware I/O.\n"
+    
+    # Try Ollama integration (Qwen/Llama)
+    try:
+        import httpx
+        import json
+        async with httpx.AsyncClient() as client:
+            # Check models
+            models_res = await client.get("http://localhost:11434/api/tags", timeout=1.0)
+            if models_res.status_code == 200:
+                models = models_res.json().get("models", [])
+                if models:
+                    model_name = models[0]["name"] # Use first available model (often qwen or llama)
+                    
+                    # Generate response
+                    prompt = f"{context_str}\nUser Question: {msg}\nAnswer concisely and technically as the testing agent:"
+                    payload = {"model": model_name, "prompt": prompt, "stream": False}
+                    chat_res = await client.post("http://localhost:11434/api/generate", json=payload, timeout=10.0)
+                    if chat_res.status_code == 200:
+                        return {"response": f"[{model_name}] " + chat_res.json().get("response", "").strip()}
+    except Exception:
+        pass # Fallback to heuristic
+
+    # --- Heuristic Fallback ---
+    msg_lower = msg.lower()
+    if "fail" in msg_lower or "error" in msg_lower or "bug" in msg_lower:
         if not agent.failures:
             return {"response": "I haven't encountered any test failures yet. All simulated boundaries are holding up so far."}
-        
-        # Pick the most recent failure to explain
         f = agent.failures[-1]
-        test_id = f["scenario"].test_id
-        target = f["scenario"].target
-        expected = f["scenario"].expected_outcome
-        
         diag = f.get("diagnosis")
-        cause = diag.cause_hypothesis if diag else "I noticed a state mismatch between the expected hardware output and the actual simulator output."
-        loc = f" around {diag.source_location}" if diag and diag.source_location else ""
+        cause = diag.cause_hypothesis if diag else "state mismatch"
+        loc = f" around {diag.source_location}" if diag and getattr(diag, 'source_location', None) else ""
+        return {"response": f"Looking at {f['scenario'].test_id}, testing '{f['scenario'].target}'. Expected: '{f['scenario'].expected_outcome}'. However, {cause}{loc}."}
         
-        resp = f"Looking at {test_id}, I was testing '{target}'. I expected: '{expected}'. \n\nHowever, {cause}{loc}. This indicates a logic flaw in the C firmware where the edge-case is not properly handled."
-        return {"response": resp}
-        
-    # 2. Check for risk inquiries (e.g. "what risks did you find?")
-    if "risk" in msg or "vulnerabilit" in msg or "boundary" in msg:
+    if "risk" in msg_lower or "vulnerabilit" in msg_lower:
         if not agent.risks:
             return {"response": "I am currently building the AST. No risks mapped yet."}
+        return {"response": f"I found {len(agent.risks)} architectural risks. I flagged them because triggering these thresholds directly alters hardware state."}
             
-        high_risks = [r for r in agent.risks if r.severity.name == "HIGH"]
-        if high_risks:
-            r = high_risks[0]
-            return {"response": f"I found {len(agent.risks)} total architectural risks. The most critical one is a {r.category.name} risk. {r.explanation}\n\nI flagged this because if this threshold is triggered during flight/operation, it directly alters hardware state."}
-        else:
-            return {"response": f"I found {len(agent.risks)} potential edge cases by parsing the control flow graph. I am generating scenarios to test these boundaries in the simulator now."}
-            
-    # 3. Check for code/logic inquiries
-    if "code" in msg or "logic" in msg or "explain" in msg:
+    if "code" in msg_lower or "logic" in msg_lower:
         files = ", ".join(Path(f).name for f in agent.project.source_files)
-        return {"response": f"I parsed {files}. I extracted the control flow graph using semantic analysis, mapped out the state variables, and identified the Memory-Mapped I/O (MMIO) hardware interactions. I use this graph to autonomously generate failure scenarios."}
+        return {"response": f"I parsed {files}, extracted the control flow graph, and identified MMIO. I use this to generate failure scenarios."}
 
-    # 4. Default contextual response
-    return {"response": f"I'm actively monitoring the firmware execution. I've run {len(agent.test_results)} tests and found {len(agent.failures)} anomalies. Let me know if you want me to explain a specific failure or risk!"}
+    return {"response": f"I am monitoring execution. I ran {len(agent.test_results)} tests and found {len(agent.failures)} anomalies. (Note: Install Ollama locally for deep LLM chat)."}
 
 
 # ── Firmware Source ───────────────────────────────────────────
+@app.get("/api/runs/{run_id}/report")
+async def generate_report(run_id: str):
+    if run_id not in active_runs:
+        raise HTTPException(404, "Run not found")
+    agent = active_runs[run_id]["agent"]
+    
+    html = f"""
+    <html>
+    <head>
+        <title>PS3 Agent - Autonomous Firmware Testing Report</title>
+        <style>
+            body {{ font-family: system-ui, sans-serif; background: #0a0a0a; color: #fff; padding: 40px; }}
+            h1 {{ color: #3b82f6; }}
+            .card {{ background: #111; padding: 20px; border: 1px solid #333; border-radius: 8px; margin-bottom: 20px; }}
+            .pass {{ color: #10b981; font-weight: bold; }}
+            .fail {{ color: #ef4444; font-weight: bold; }}
+        </style>
+    </head>
+    <body>
+        <h1>Autonomous Red-Team Execution Report</h1>
+        <div class="card">
+            <h2>Summary</h2>
+            <p>Target Firmware: {agent.firmware_path}</p>
+            <p>Total Tests Run: {len(agent.test_results)}</p>
+            <p>Failures Found: <span class="fail">{len(agent.failures)}</span></p>
+            <p>Risks Mapped: {len(agent.risks)}</p>
+        </div>
+        <div class="card">
+            <h2>Critical Failures & Regressions</h2>
+            {"".join(f"<p><b>Test {f['scenario'].test_id}</b>: {f['scenario'].target} - <span class='fail'>FAILED</span><br/>Reason: {f.get('diagnosis', {}).get('cause_hypothesis', 'State mismatch')}</p>" for f in agent.failures) if agent.failures else "<p>No critical failures detected.</p>"}
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
+
 @app.get("/api/firmware/{run_id}")
 async def get_firmware_source(run_id: str):
     if run_id not in active_runs:

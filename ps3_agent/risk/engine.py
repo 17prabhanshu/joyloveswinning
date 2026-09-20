@@ -61,7 +61,7 @@ def hunt_boundaries(understanding: FirmwareUnderstanding) -> list[RiskFinding]:
                 risk_id=_risk_id(),
                 category=RiskCategory.BOUNDARY,
                 source_location=f"{func.file}:{func.line} in {func.name}()",
-                explanation=f"Temperature threshold `{cond}` in {func.name}() controls hardware output. "
+                explanation=f"Threshold `{cond}` in {func.name}() controls hardware output. "
                             f"Boundary value {resolved_value} may exhibit off-by-one behavior.",
                 severity=severity,
                 confidence=0.9 if has_hw else 0.6,
