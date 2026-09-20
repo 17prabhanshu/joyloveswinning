@@ -49,9 +49,14 @@ export default function Overview({ runId }: { runId: string | null }) {
           <h2 className="text-4xl font-black tracking-tighter bg-gradient-to-r from-white to-gray-600 bg-clip-text text-transparent">Control Console</h2>
           <p className="text-gray-500 text-sm mt-1 uppercase tracking-widest font-mono">Live Telemetry & Diagnostics</p>
         </div>
-        <div className="flex items-center gap-2 px-4 py-2 bg-blue-900/20 border border-blue-500/30 rounded-full text-blue-400 text-xs font-bold tracking-widest uppercase shadow-[0_0_15px_rgba(59,130,246,0.3)]">
-          <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
-          System Online
+        <div className="flex gap-4">
+          <a href={`/api/runs/${runId}/report`} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-6 py-2 bg-purple-900/20 border border-purple-500/30 rounded-lg text-purple-400 text-sm font-bold tracking-widest uppercase hover:bg-purple-900/40 transition-colors">
+            Generate Report
+          </a>
+          <div className="flex items-center gap-2 px-4 py-2 bg-blue-900/20 border border-blue-500/30 rounded-full text-blue-400 text-xs font-bold tracking-widest uppercase shadow-[0_0_15px_rgba(59,130,246,0.3)]">
+            <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+            System Online
+          </div>
         </div>
       </header>
 

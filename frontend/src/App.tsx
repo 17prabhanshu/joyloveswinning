@@ -7,6 +7,8 @@ import DeepDive from './components/DeepDive';
 import TestLab from './components/TestLab';
 import BehaviorGraph from './components/BehaviorGraph';
 import Failures from './components/Failures';
+import Simulators from './components/Simulators';
+import Regressions from './components/Regressions';
 import SetupScreen from './components/SetupScreen';
 
 function App() {
@@ -51,8 +53,8 @@ function App() {
       case 'Deep Dive (Code)': return <DeepDive runId={runId} />;
       case 'Behavior Graph': return <BehaviorGraph runId={runId} />;
       case 'Failures': return <Failures runId={runId} />;
-      case 'Regressions': return <div className="p-6 text-gray-400">Regressions Panel (Coming Soon)</div>;
-      case 'Simulators': return <div className="p-6 text-gray-400">Simulators Panel (Coming Soon)</div>;
+      case 'Regressions': return <Regressions runId={runId} />;
+      case 'Simulators': return <Simulators runId={runId} />;
       default: return <Overview runId={runId} />;
     }
   };
