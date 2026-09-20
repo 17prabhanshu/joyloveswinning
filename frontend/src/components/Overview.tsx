@@ -48,12 +48,22 @@ export default function Overview({ runId }: { runId: string | null }) {
     };
   }, [runId]);
 
+  const isRunning = events.length === 0 || (events[0] && !events[0].content.includes('Run complete'));
+
   return (
     <div className="p-8 h-full flex flex-col gap-8 bg-[#050505]">
       <header className="flex justify-between items-end">
         <div>
           <h2 className="text-4xl font-black tracking-tighter bg-gradient-to-r from-white to-gray-600 bg-clip-text text-transparent">Control Console</h2>
-          <p className="text-gray-500 text-sm mt-1 uppercase tracking-widest font-mono">Live Telemetry & Diagnostics</p>
+          <div className="flex items-center gap-3 mt-1">
+            <p className="text-gray-500 text-sm uppercase tracking-widest font-mono">Live Telemetry & Diagnostics</p>
+            {isRunning && (
+              <div className="flex items-center gap-2 px-2 py-0.5 bg-blue-900/20 rounded-full border border-blue-500/30">
+                <div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-blue-400 text-[10px] uppercase font-bold tracking-wider">Simulating</span>
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex gap-4">
           <a href={`/api/runs/${runId}/report`} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-6 py-2 bg-purple-900/20 border border-purple-500/30 rounded-lg text-purple-400 text-sm font-bold tracking-widest uppercase hover:bg-purple-900/40 transition-colors">
