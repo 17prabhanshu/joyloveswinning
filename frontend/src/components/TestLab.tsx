@@ -171,14 +171,28 @@ export default function TestLab({ runId }: { runId: string | null }) {
                     </div>
                     
                     {loadingAnalysis ? (
-                      <div className="flex flex-col items-center justify-center py-12 gap-6 relative">
-                        <div className="relative">
-                          <div className="absolute inset-0 bg-red-500/20 blur-xl rounded-full"></div>
-                          <BrainCircuit size={48} className="text-red-500/80 animate-pulse relative z-10" />
+                      <div className="flex flex-col items-center justify-center py-16 gap-8 relative overflow-hidden rounded-2xl border border-red-500/10 bg-black/40 shadow-inner">
+                        <div className="absolute inset-0 bg-[linear-gradient(rgba(239,68,68,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(239,68,68,0.05)_1px,transparent_1px)] bg-[size:20px_20px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-30"></div>
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent opacity-50 animate-[shimmer_2s_infinite]"></div>
+                        
+                        <div className="relative z-10">
+                          <div className="absolute inset-0 bg-red-500/30 blur-2xl rounded-full animate-pulse"></div>
+                          <div className="relative w-20 h-20 border-2 border-red-500/20 rounded-full flex items-center justify-center">
+                            <div className="absolute inset-0 border-t-2 border-red-500 rounded-full animate-spin"></div>
+                            <div className="absolute inset-2 border-l-2 border-red-400/50 rounded-full animate-[spin_3s_linear_infinite_reverse]"></div>
+                            <BrainCircuit size={32} className="text-red-500 animate-pulse" />
+                          </div>
                         </div>
-                        <div className="flex flex-col items-center gap-2 text-center">
-                          <p className="text-red-400 font-mono text-sm tracking-widest uppercase animate-pulse font-bold">Autonomous Engine Analyzing</p>
-                          <p className="text-gray-500 text-xs font-mono">Extracting AST boundaries and memory state vectors...</p>
+                        
+                        <div className="flex flex-col items-center gap-3 text-center relative z-10">
+                          <p className="text-red-400 font-mono text-sm tracking-[0.2em] uppercase font-black bg-red-950/50 px-4 py-1 rounded border border-red-500/20">
+                            Neural Analysis Active
+                          </p>
+                          <div className="text-gray-400 text-xs font-mono space-y-1">
+                            <p className="animate-[pulse_1s_infinite]">&gt; Injecting execution state into LLM context window...</p>
+                            <p className="animate-[pulse_1s_infinite_100ms] opacity-70">&gt; Correlating memory faults with AST boundaries...</p>
+                            <p className="animate-[pulse_1s_infinite_200ms] opacity-50">&gt; Synthesizing vulnerability remediation payload...</p>
+                          </div>
                         </div>
                       </div>
                     ) : analysis ? (
