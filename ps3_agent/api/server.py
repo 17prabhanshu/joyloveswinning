@@ -464,7 +464,7 @@ async def generate_report(run_id: str):
         </div>
         <div class="card">
             <h2>Critical Failures & Regressions</h2>
-            {"".join(f"<p><b>Test {f['scenario'].test_id}</b>: {f['scenario'].target} - <span class='fail'>FAILED</span><br/>Reason: {f.get('diagnosis', {}).get('cause_hypothesis', 'State mismatch')}</p>" for f in agent.failures) if agent.failures else "<p>No critical failures detected.</p>"}
+            {"".join(f"<p><b>Test {f['scenario'].test_id}</b>: {f['scenario'].target} - <span class='fail'>FAILED</span><br/>Reason: {(getattr(f.get('diagnosis'), 'cause_hypothesis', 'State mismatch') if hasattr(f.get('diagnosis'), 'cause_hypothesis') else f.get('diagnosis', {}).get('cause_hypothesis', 'State mismatch') if isinstance(f.get('diagnosis'), dict) else 'State mismatch')}</p>" for f in agent.failures) if agent.failures else "<p>No critical failures detected.</p>"}
         </div>
     </body>
     </html>

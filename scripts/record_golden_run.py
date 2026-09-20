@@ -65,7 +65,7 @@ def main():
             
     # 5. Trigger Patching
     print("\n4. Triggering Auto-Patch Generation...")
-    requests.post(f"{BASE_URL}/runs/{run_id}/patch", json={"fixes": ["Fix boundary conditions"]})
+    requests.post(f"{BASE_URL}/runs/{run_id}/patch", json={"fix_snippet": "Fix boundary conditions"})
     
     # 6. Verify Cache
     if CACHE_DIR.exists():

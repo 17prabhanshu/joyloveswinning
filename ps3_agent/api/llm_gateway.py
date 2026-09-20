@@ -49,10 +49,6 @@ class LLMGateway:
         Main entry point for generating content.
         Returns a mock httpx.Response object to maintain compatibility with existing consumers.
         """
-        if not self.api_key:
-            logger.warning("No GEMINI_API_KEY found.")
-            return self._mock_response(500, "No API Key configured.")
-            
         async with self.semaphore:
             # Replay Mode Safety Net
             if self.replay_mode and llm_cache:
@@ -63,6 +59,10 @@ class LLMGateway:
                         return self._mock_response(200, llm_cache[cache_key])
                 logger.warning(f"[Replay Mode] Cache miss for prompt. Returning safe default.")
                 return self._mock_response(200, default_fallback)
+
+            if not self.api_key:
+                logger.warning("No GEMINI_API_KEY found.")
+                return self._mock_response(500, "No API Key configured.")
 
             # Standard Execution with Fallbacks
             for model in self.fallback_chain:
