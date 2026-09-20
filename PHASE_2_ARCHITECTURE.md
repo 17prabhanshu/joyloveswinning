@@ -1,101 +1,109 @@
-# Phase 2: Enterprise Architecture Implementation Plan
+# Phase 2 (Hackathon-Realistic, v2): JOY Extension Plan
 
-This document outlines the exact technical roadmap to transition the JOY framework from a hackathon prototype into a production-grade, model-agnostic, Hardware-in-the-Loop (HIL) security testing platform.
+**Context for implementer (Antigravity):** Renode and Wokwi support are **named requirements in the hackathon problem statement**, not optional polish — treat them as graded scope, not nice-to-haves. Physical ESP32/Arduino hardware is a bonus tier only, attempted after the required scope is demo-stable. Every phase below must leave the system in a fully demoable state on its own — do not start a later phase until the current phase's exit criteria pass.
 
----
-
-## 1. The Model-Agnostic LLM Gateway
-**Goal:** Eliminate dependency on a single AI provider, prevent rate-limiting, and introduce zero-cost semantic caching.
-
-### New Architecture
-We will replace direct `httpx` calls with a unified `LLMGateway` class utilizing `litellm` (or a custom OpenAI-compatible router).
-
-### Files to Modify / Create
-- **CREATE** `ps3_agent/api/llm_gateway.py`
-  - Defines `LLMGateway` class.
-  - Implements `hash(prompt)` for SQLite caching.
-  - Implements a Round-Robin API key queue.
-- **MODIFY** `ps3_agent/api/server.py`
-  - Remove all hardcoded `gemini-3.6-flash` calls.
-  - Import and instantiate `LLMGateway`.
-- **MODIFY** `requirements.txt` / `pyproject.toml`
-  - Add `litellm` (for universal LLM routing).
-  - Add `diskcache` (for lightning-fast prompt caching).
-
-### Execution Flow
-1. Agent requests a payload generation.
-2. `LLMGateway` checks the local cache. If a hit, return instantly (0ms).
-3. If a miss, Gateway tries Provider A (e.g., Groq Llama 3.1 70B).
-4. If Provider A hits a 429/503, Gateway intercepts and silently reroutes to Provider B (Gemini).
-5. If Provider B fails, Gateway reroutes to Local Ollama.
-6. Response is cached and returned to the agent.
+**Do not touch, regardless of phase:**
+- The existing `SimulatorAdapter` interface contract — `AgentLoop` must not need to know whether it's talking to Renode, Wokwi, physical hardware, or the deterministic mock.
+- The `DeterministicSimulator` fallback path — it stays as the last-resort safety net if every real execution target fails.
 
 ---
 
-## 2. True Hardware-in-the-Loop (HIL) Execution
-**Goal:** Move away from the Python `DeterministicSimulator` and execute actual cross-compiled binaries on physical boards (ESP32/Arduino) and real virtual emulators (Renode/Wokwi).
+## Phase A — LLM Gateway & Rate-Limit Resilience
+**Priority: highest. Do this first. Do it fully.**
 
-### New Architecture
-Introduce a dynamic compilation pipeline and physical serial adapters.
+### Goal
+Never visibly fail or stall mid-demo due to Gemini 429/503 errors, regardless of what else ships in later phases.
 
-### Files to Modify / Create
-- **CREATE** `ps3_agent/execution/compiler.py`
-  - Wraps the `platformio` CLI.
-  - Automatically generates `platformio.ini` based on the target board.
-  - Compiles `fan_controller.c` into `firmware.bin` or `firmware.elf`.
-- **CREATE** `ps3_agent/execution/physical_adapter.py`
-  - Uses `esptool.py` to flash the `.bin` to a connected USB board.
-  - Uses `pyserial` to open the COM port, inject inputs, and read UART crash logs.
-- **MODIFY** `ps3_agent/execution/simulator.py`
-  - Update `RenodeAdapter` and `WokwiAdapter` to execute the actual compiled `.elf` files via background subprocesses, rather than returning "unsupported".
-  
-### Execution Flow
-1. LLM synthesizes a new test scenario.
-2. `compiler.py` compiles the C code into binary.
-3. The orchestrator checks if a physical board is connected via USB.
-4. **If Yes:** `physical_adapter.py` flashes the board and monitors the Serial output.
-5. **If No:** `RenodeAdapter` boots a virtual Cortex-M4, loads the `.elf`, and reads virtual registers.
-6. Execution results are parsed and fed back to the LLM for diagnosis.
+### Files
+
+**CREATE `ps3_agent/api/llm_gateway.py`**
+- `LLMGateway` class wrapping all Gemini calls.
+- `diskcache`-based response cache, keyed by `hash(prompt + model)`.
+- 429-specific backoff with jitter, respecting `retry-after` where present.
+- Concurrency cap via `asyncio.Semaphore` (max 2–3 in-flight Gemini calls).
+- Fallback chain: `gemini-3.6-flash` → `gemini-1.5-flash` → `gemini-2.0-flash-exp` → cached "safe default".
+
+**MODIFY `ps3_agent/api/server.py`**
+- Route all Gemini calls through `LLMGateway`. Remove any remaining direct `httpx` calls to the Gemini endpoint.
+
+**Demo safety net:**
+- Add a `--replay-mode` flag serving pre-recorded LLM responses for the known `fan_controller.c` run.
 
 ---
 
-## 3. Persistent State & RAG (Retrieval-Augmented Generation)
-**Goal:** Prevent data loss on server restarts and allow the AI to learn from its past successful patches.
+## Phase B — Wokwi Headless Execution
+**Priority: second. Start once Phase A passes. This is required scope.**
 
-### New Architecture
-Replace in-memory Python dictionaries (`active_runs`) with an SQLite database and a vector-based knowledge graph.
+### Goal
+Real Wokwi simulation execution — no USB/driver dependency, more demo-reliable than physical hardware, and directly satisfies the problem statement.
 
-### Files to Modify / Create
-- **CREATE** `ps3_agent/db/models.py`
-  - SQLAlchemy ORM models for `Run`, `Event`, `Risk`, and `Patch`.
-- **CREATE** `ps3_agent/memory/rag_engine.py`
-  - Uses a lightweight local vector store (e.g., `ChromaDB` or `FAISS`) to store successful patches.
-- **MODIFY** `ps3_agent/api/server.py`
-  - Mount the database connection on startup.
-  - Refactor all `/api/runs` endpoints to query SQLite instead of RAM.
+### Files
 
-### Execution Flow
-1. Agent detects a Boundary Off-by-One crash.
-2. Agent queries `rag_engine.py`: *"Have I seen this crash signature before?"*
-3. RAG engine retrieves a previously successful patch from the database.
-4. Agent uses the historical patch as context to generate a highly accurate fix on the first try.
-5. All telemetry is written to SQLite for persistent dashboard viewing.
+**CREATE `ps3_agent/execution/wokwi_adapter.py`**
+- Wraps the `wokwi-cli` headless simulation runner.
+- Generates a `diagram.json` describing the board and wiring.
+- Compiles `fan_controller.c` to a binary/hex the Wokwi simulator can load (via `arduino-cli` or `platformio`).
+- Launches `wokwi-cli` against the diagram + binary, injects test stimulus, and scrapes serial/UART output.
+
+**MODIFY `ps3_agent/execution/simulator.py`**
+- Replace the current Wokwi stub with real dispatch to `WokwiAdapter`.
 
 ---
 
-## 4. Implementation Phasing
+## Phase C — Renode Scripted Execution
+**Priority: third. Start once Phase B passes. Also required scope.**
 
-**Phase 2.1: Robustness (Week 1)**
-- Implement `LLMGateway`.
-- Integrate caching and Open-Source model fallbacks (Groq/Llama3).
-- Migrate from in-memory state to SQLite.
+### Goal
+Real Renode emulation — scriptable via `.resc` monitor files, directly satisfies the problem statement's second named tool.
 
-**Phase 2.2: Execution Reality (Week 2)**
-- Implement `compiler.py` (PlatformIO integration).
-- Build the `physical_adapter.py` (PySerial/USB).
-- Connect Wokwi CLI for headless virtual execution.
+### Files
 
-**Phase 2.3: Intelligence (Week 3)**
-- Implement `rag_engine.py`.
-- Embed historical test results.
-- Refine the LLM prompts to utilize the RAG context.
+**CREATE `ps3_agent/execution/compiler.py`**
+- Shared compilation wrapper for both Phase B and C.
+
+**CREATE `ps3_agent/execution/renode_adapter.py`**
+- Generates a `.resc` script targeting a standard Renode platform description.
+- Boots Renode headless, loads the compiled `.elf`, injects test stimulus, and reads back register/UART state.
+
+**MODIFY `ps3_agent/execution/simulator.py`**
+- Replace the current Renode stub with real dispatch to `RenodeAdapter`.
+
+---
+
+## Phase D — Physical ESP32/Arduino (Bonus Tier)
+**Priority: fourth. Only attempt if Phases A–C are demo-stable with real time remaining.**
+
+### Goal
+A literal physical board flashing/crashing/patching live.
+
+### Files
+
+**CREATE `ps3_agent/execution/physical_adapter.py`**
+- Uses `esptool.py` or `arduino-cli upload` to flash the binary compiled in Phase C's `compiler.py`.
+- Uses `pyserial` to inject stimulus and read UART output.
+
+**MODIFY `ps3_agent/execution/simulator.py`**
+- Add adapter-selection logic: detect a connected board via `pyserial.tools.list_ports`.
+
+---
+
+## Phase E — Persistent State
+**Priority: fifth. Only if A–C (and ideally D) are done with time remaining.**
+- **CREATE** `ps3_agent/db/models.py` — SQLite + SQLAlchemy models.
+- **MODIFY** `ps3_agent/api/server.py` — swap `active_runs` dict for DB-backed reads/writes.
+
+---
+
+## Phase F — RAG on Past Patches
+**Priority: lowest. Only if everything above is done and rehearsed with days to spare.**
+- `ps3_agent/memory/rag_engine.py` (NEW) — local vector store (ChromaDB/FAISS) of crash signature → successful patch.
+
+---
+
+## Ground Rules Summary
+
+1. **Renode and Wokwi are required scope.** Physical hardware is purely optional.
+2. Every phase must leave `main` in a demoable state at all times.
+3. Preserve the `SimulatorAdapter` interface contract exactly across all phases.
+4. Fallback order at runtime: Physical (if connected) → Renode → Wokwi → DeterministicSimulator. Each degrades gracefully.
+5. If forced to cut under time pressure: **Phase F → Phase E → Phase D**. Do not cut B or C.
