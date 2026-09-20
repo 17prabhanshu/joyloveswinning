@@ -52,13 +52,23 @@ class LabWiredAdapter(SimulatorAdapter):
         self._current_script: Path | None = None
         self._output_dir: Path | None = None
 
-    def capabilities(self) -> SimulatorCapabilities:
+    def capabilities(self, chip: str = "stm32f103") -> SimulatorCapabilities:
         from firmware_agent.simulator.base import SimulatorCapabilities
+        
+        # In a real implementation we would parse upstream/labwired-core/configs/chips/{chip}.yaml
+        # For STM32F103, it has GPIOA, GPIOB, GPIOC (each 16 pins)
+        pins = []
+        if chip == "stm32f103":
+            for port in ['A', 'B', 'C']:
+                for pin in range(16):
+                    pins.append(f"P{port}{pin}")
+        
         return SimulatorCapabilities(
             can_observe_gpio=True,
             can_observe_uart=True,
             can_observe_registers=True,
-            can_inject_faults=["disconnect", "out_of_range"]
+            can_inject_faults=["disconnect", "out_of_range"],
+            supported_pins=pins
         )
 
     def name(self) -> str:
@@ -111,7 +121,8 @@ class LabWiredAdapter(SimulatorAdapter):
 
         config.firmware_path = str(firmware_path)
         if config.chip:
-            config.chip = str(Path(config.chip).resolve())
+            if config.chip.endswith(".yaml") or config.chip.endswith(".yml") or "/" in config.chip:
+                config.chip = str(Path(config.chip).resolve())
         if config.system_manifest:
             config.system_manifest = str(Path(config.system_manifest).resolve())
 
@@ -136,6 +147,16 @@ class LabWiredAdapter(SimulatorAdapter):
             "--output-dir", str(self._output_dir),
             "--no-uart-stdout",
         ]
+        # Gate 4: Enable GPIO observability (using native logic analyzer trace)
+        for assertion in config.assertions:
+            if "gpio_equals" in assertion:
+                pin_str = assertion["gpio_equals"].get("pin", "").lower()
+                # e.g. PA5 -> gpioa:5
+                if len(pin_str) >= 3 and pin_str.startswith("p"):
+                    port = pin_str[1]
+                    pin = pin_str[2:]
+                    cmd.extend(["--watch-gpio", f"gpio{port}:{pin}"])
+        
         cmd.extend(config.extra_args)
 
         import time
@@ -212,8 +233,11 @@ class LabWiredAdapter(SimulatorAdapter):
         inputs: dict[str, Any] = {"firmware": config.firmware_path}
         if config.system_manifest:
             inputs["system"] = config.system_manifest
-        elif config.chip:
-            inputs["chip"] = config.chip
+        if config.chip:
+            if config.chip.endswith(".yaml") or config.chip.endswith(".yml") or "/" in config.chip:
+                inputs["chip"] = os.path.abspath(config.chip)
+            else:
+                inputs["chip"] = config.chip
         script["inputs"] = inputs
 
         # Limits
@@ -229,8 +253,12 @@ class LabWiredAdapter(SimulatorAdapter):
         script["limits"] = limits
 
         # Assertions
-        if config.assertions:
-            script["assertions"] = config.assertions
+        native_assertions = []
+        for a in config.assertions:
+            if any(k in a for k in ("uart_contains", "uart_not_contains", "uart_regex", "expected_stop_reason")):
+                native_assertions.append(a)
+        if native_assertions:
+            script["assertions"] = native_assertions
 
         # UART injections (schema 1.2)
         if config.uart_injections:
@@ -314,9 +342,21 @@ class LabWiredAdapter(SimulatorAdapter):
         if not cpu_state and snapshot:
             cpu_state = snapshot.get("cpu", {})
 
-        # Extract GPIO state from snapshot
+        # Extract GPIO state from logic_edges
         gpio_state = {}
-        if snapshot:
+        logic_edges = raw.get("logic_edges", {})
+        for channel in logic_edges.get("channels", []):
+            port = channel.get("peripheral", "").replace("gpio", "").upper()
+            pin = channel.get("pin", "")
+            key = f"P{port}{pin}"
+            
+            # Use final transitioned value, or initial if no transitions
+            transitions = channel.get("transitions", [])
+            if transitions:
+                gpio_state[key] = transitions[-1].get("value")
+            else:
+                gpio_state[key] = channel.get("initial")
+        if snapshot and not gpio_state:
             gpio_state = snapshot.get("gpio", snapshot.get("peripherals", {}))
 
         return SimulationResult(

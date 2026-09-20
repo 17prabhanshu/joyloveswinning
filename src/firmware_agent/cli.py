@@ -100,5 +100,71 @@ def demo():
     except Exception as e:
         console.print(f"[bold red]Demo failed: {str(e)}[/bold red]")
 
+@main.command()
+@click.argument('run_id')
+def view(run_id):
+    """Open 3D viewer for a specific run trace."""
+    console.print(f"[bold blue]Launching viewer for run: {run_id}[/bold blue]")
+    
+    trace_path = os.path.join('artifacts', 'traces', run_id, 'trace.json')
+    if not os.path.exists(trace_path):
+        console.print(f"[bold red]Error: No trace.v1 artifact found at {trace_path}[/bold red]")
+        console.print(f"Make sure the run executed and emitted telemetry successfully.")
+        import sys; sys.exit(1)
+        
+    html_path = os.path.join('src', 'firmware_agent', 'reporting', 'viewer', 'rig_view.html')
+    with open(html_path, 'r') as f:
+        html = f.read()
+        
+    with open(trace_path, 'r') as f:
+        trace_data = f.read()
+        
+    script_block = f'<script type="application/json" id="trace-data">\n{trace_data}\n</script>'
+    html = html.replace('</body>', f'{script_block}\n</body>')
+    
+    out_path = os.path.abspath(os.path.join('artifacts', f'viewer_{run_id}.html'))
+    with open(out_path, 'w') as f:
+        f.write(html)
+        
+    console.print(f"[green]Viewer built: {out_path}[/green]")
+    console.print(f"[green]Size: {os.path.getsize(out_path)} bytes[/green]")
+    import webbrowser
+    webbrowser.open(f'file://{out_path}')
+
+@main.command()
+@click.argument('run_a')
+@click.argument('run_b')
+def compare(run_a, run_b):
+    """Open 3D viewer comparison for two runs."""
+    console.print(f"[bold blue]Launching comparison for {run_a} vs {run_b}[/bold blue]")
+    
+    trace_a_path = os.path.join('artifacts', 'traces', run_a, 'trace.json')
+    trace_b_path = os.path.join('artifacts', 'traces', run_b, 'trace.json')
+    
+    for path in [trace_a_path, trace_b_path]:
+        if not os.path.exists(path):
+            console.print(f"[bold red]Error: No trace.v1 artifact found at {path}[/bold red]")
+            import sys; sys.exit(1)
+            
+    html_path = os.path.join('src', 'firmware_agent', 'reporting', 'viewer', 'rig_view.html')
+    with open(html_path, 'r') as f:
+        html = f.read()
+        
+    with open(trace_a_path, 'r') as f: trace_a = f.read()
+    with open(trace_b_path, 'r') as f: trace_b = f.read()
+        
+    # We will inject an array of traces for comparison mode
+    script_block = f'<script type="application/json" id="trace-data-compare">\n[{trace_a},{trace_b}]\n</script>'
+    html = html.replace('</body>', f'{script_block}\n</body>')
+    
+    out_path = os.path.abspath(os.path.join('artifacts', f'compare_{run_a}_{run_b}.html'))
+    with open(out_path, 'w') as f:
+        f.write(html)
+        
+    console.print(f"[green]Comparison Viewer built: {out_path}[/green]")
+    console.print(f"[green]Size: {os.path.getsize(out_path)} bytes[/green]")
+    import webbrowser
+    webbrowser.open(f'file://{out_path}')
+
 if __name__ == '__main__':
     main()

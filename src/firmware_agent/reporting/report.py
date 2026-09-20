@@ -52,7 +52,7 @@ class ReportGenerator:
             
         return output_path
 
-    def generate_html_report(self, results: list, firmware_path: str, output_path: str) -> str:
+    def generate_html_report(self, results: list, firmware_path: str, output_path: str, trace_data_json: str = None) -> str:
         """
         Generates a self-contained HTML report using Jinja2.
         """
@@ -65,6 +65,16 @@ class ReportGenerator:
         execution_time = sum(r.get('duration', 0) for r in results)
 
         failures = [r for r in results if r.get('status', '').lower() == 'failed']
+        
+        rig_view_content = ""
+        if trace_data_json:
+            html_path = os.path.join('src', 'firmware_agent', 'reporting', 'viewer', 'rig_view.html')
+            if os.path.exists(html_path):
+                with open(html_path, 'r') as f:
+                    rig_html = f.read()
+                # Inject trace
+                script_block = f'<script type="application/json" id="trace-data">\n{trace_data_json}\n</script>'
+                rig_view_content = rig_html.replace('</body>', f'{script_block}\n</body>')
         
         data = {
             "summary": {
@@ -83,11 +93,11 @@ class ReportGenerator:
                 "Executed automated test suite."
             ],
             "metadata": {
-                "timestamp": datetime.datetime.now().isoformat(),
-                "firmware": firmware_path,
-                "simulator": "LabWiredAdapter",
-                "version": "1.0.0"
-            }
+                "firmware_path": firmware_path,
+                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "simulator": "LabWiredAdapter"
+            },
+            "rig_view_content": rig_view_content
         }
         
         template = Template(REPORT_TEMPLATE)

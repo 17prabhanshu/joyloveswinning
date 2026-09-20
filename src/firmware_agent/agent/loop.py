@@ -105,8 +105,26 @@ class AutonomousAgent:
         
         results_dicts = [r.model_dump() for r in results]
         
+        # Load trace data from the first run (prefer a failing one if available)
+        trace_data_json = None
+        target_run = None
+        for r in results:
+            if not r.passed:
+                target_run = r.test_id
+                break
+        if not target_run and results:
+            target_run = results[0].test_id
+            
+        if target_run:
+            # The test_id might be the run_id, let's just try to find a trace in artifacts/traces
+            import glob
+            traces = glob.glob(os.path.join("artifacts", "traces", "*", "trace.json"))
+            if traces:
+                with open(traces[0], "r") as f:
+                    trace_data_json = f.read()
+        
         reporter.generate_json_report(results_dicts, self.firmware_path, json_path)
-        html_report_path = reporter.generate_html_report(results_dicts, self.firmware_path, html_path)
+        html_report_path = reporter.generate_html_report(results_dicts, self.firmware_path, html_path, trace_data_json)
         
         passed = sum(1 for r in results if r.passed)
         failed = sum(1 for r in results if not r.passed)

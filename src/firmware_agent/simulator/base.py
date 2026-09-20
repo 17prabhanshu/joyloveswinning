@@ -92,6 +92,7 @@ class SimulatorCapabilities(BaseModel):
     can_observe_uart: bool = False
     can_observe_registers: bool = False
     can_inject_faults: list[str] = Field(default_factory=list)
+    supported_pins: list[str] = Field(default_factory=list)
 
 
 class SimulatorAdapter(ABC):
@@ -102,8 +103,8 @@ class SimulatorAdapter(ABC):
     """
 
     @abstractmethod
-    def capabilities(self) -> SimulatorCapabilities:
-        """Return the capabilities of this simulator backend."""
+    def capabilities(self, chip: str = "stm32f103") -> SimulatorCapabilities:
+        """Return the capabilities of this simulator."""
         ...
 
     @abstractmethod

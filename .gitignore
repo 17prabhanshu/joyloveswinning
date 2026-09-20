@@ -5,3 +5,13 @@ __pycache__/
 artifacts/raw/
 artifacts/reports/
 *.egg-info/
+arm-toolchain/
+artifacts/traces/
+artifacts/*.html
+artifacts/*.json
+artifacts/*.vcd
+patch_*.py
+run_view.py
+emit_trace_demo.py
+find_divergence.py
+compile_demo.sh

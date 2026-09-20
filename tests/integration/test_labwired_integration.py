@@ -200,6 +200,63 @@ class TestLabWiredIntegration:
 
             print(f"nRF54L15 smoke: PASS ({raw['steps_executed']} steps)")
 
+    def test_gpio_observability_via_vcd(self, labwired: LabWiredAdapter, verifier: Verifier):
+        """Verify GPIO changes are captured via VCD and parsed (Gate 4 blocker)."""
+        blinky_elf = UPSTREAM_DIR / "tests" / "fixtures" / "stm32f103-blinky.elf"
+        if not blinky_elf.exists():
+            pytest.skip(f"Fixture ELF not found: {blinky_elf}")
+
+        config = HardwareConfig(
+            firmware_path=str(blinky_elf),
+            chip="stm32f103",
+            max_steps=50000,
+            assertions=[{"gpio_equals": {"pin": "PC13", "value": 0}}],
+        )
+        
+        result = labwired.execute_test(str(blinky_elf), config)
+        
+        # Verify the VCD was actually generated and saved to raw artifacts
+        output_dir = Path(result.raw_result.get("config", {}).get("script", "")).parent
+        vcd_path = output_dir / "trace.vcd"
+        if not vcd_path.exists():
+            # If the backend did not generate trace.vcd, print a warning for the user
+            print(f"\nWARNING: trace.vcd was not generated at {vcd_path}")
+        else:
+            print(f"\nSUCCESS: VCD trace generated at {vcd_path} ({vcd_path.stat().st_size} bytes)")
+        
+        print(f"\nGPIO State: {result.gpio_state}")
+        # We assert gpio_equals. If it's not implemented yet, it will fail the verifier, which is correct
+        expected = {
+            "assertions": [
+                {"gpio_equals": {"pin": "PC13", "value": 0}}
+            ]
+        }
+        verification = verifier.verify("test_gpio_blinky", expected, result)
+        
+        # Verify it passes when expected value is 0
+        print(f"\n--- ASSERTING PASS CASE (0) ---")
+        print(f"GPIO Verification status: {verification.status}")
+        for a in verification.assertions:
+            print(f"  {a.assertion_type}: {a.passed} ({a.description})")
+        
+        assert verification.status == VerificationStatus.PASS
+        assert len(verification.assertions) > 0
+        assert verification.assertions[0].passed
+        
+        # Now toggle it to show it flips to FAIL
+        print(f"\n--- ASSERTING FAIL CASE (1) ---")
+        expected_fail = {
+            "assertions": [
+                {"gpio_equals": {"pin": "PC13", "value": 1}}
+            ]
+        }
+        verification_fail = verifier.verify("test_gpio_blinky", expected_fail, result)
+        print(f"GPIO Verification status: {verification_fail.status}")
+        for a in verification_fail.assertions:
+            print(f"  {a.assertion_type}: {a.passed} ({a.description})")
+            
+        assert verification_fail.status == VerificationStatus.FAIL
+        assert not verification_fail.assertions[0].passed
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])

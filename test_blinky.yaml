@@ -1,0 +1,8 @@
+schema_version: "1.0"
+inputs:
+  firmware: "upstream/labwired-core/tests/fixtures/stm32f103-blinky.elf"
+  chip: "stm32f103"
+limits:
+  max_steps: 10000
+  max_vcd_bytes: 1000000
+assertions: []
