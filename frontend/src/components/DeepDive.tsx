@@ -25,20 +25,29 @@ export default function DeepDive({ runId }: { runId: string | null }) {
       .catch(console.error);
   }, [runId]);
 
-  const handleChat = (e: React.FormEvent) => {
+  const handleChat = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() || !runId) return;
 
-    setChatLog(prev => [...prev, { role: 'user', content: input }]);
+    const userMsg = input;
+    setChatLog(prev => [...prev, { role: 'user', content: userMsg }]);
     setInput('');
 
-    // Mock LLM response for instant feedback
-    setTimeout(() => {
+    try {
+      const res = await fetch(`/api/runs/${runId}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userMsg })
+      });
+      const data = await res.json();
+      
       setChatLog(prev => [...prev, { 
         role: 'agent', 
-        content: `Analyzing ${activeFile}... I see that the fan controller logic lacks a debounce delay on the GPIO write. This is risky because rapid state transitions on inductive loads can cause back-EMF spikes.` 
+        content: data.response || "I am currently analyzing the AST structure..." 
       }]);
-    }, 1000);
+    } catch (err) {
+      setChatLog(prev => [...prev, { role: 'agent', content: "Connection to agent brain lost." }]);
+    }
   };
 
   return (

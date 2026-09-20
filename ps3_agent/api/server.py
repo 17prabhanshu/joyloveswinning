@@ -261,6 +261,55 @@ async def stop_run(run_id: str):
     return {"status": "stop_requested"}
 
 
+class ChatRequest(BaseModel):
+    message: str
+
+@app.post("/api/runs/{run_id}/chat")
+async def chat_with_agent(run_id: str, req: ChatRequest):
+    if run_id not in active_runs:
+        raise HTTPException(404, "Run not found")
+    agent = active_runs[run_id]["agent"]
+    msg = req.message.lower()
+    
+    # 1. Check for failure inquiries (e.g. "why did test X fail?")
+    if "fail" in msg or "error" in msg or "bug" in msg:
+        if not agent.failures:
+            return {"response": "I haven't encountered any test failures yet. All simulated boundaries are holding up so far."}
+        
+        # Pick the most recent failure to explain
+        f = agent.failures[-1]
+        test_id = f["scenario"].test_id
+        target = f["scenario"].target
+        expected = f["scenario"].expected_outcome
+        
+        diag = f.get("diagnosis")
+        cause = diag.cause_hypothesis if diag else "I noticed a state mismatch between the expected hardware output and the actual simulator output."
+        loc = f" around {diag.source_location}" if diag and diag.source_location else ""
+        
+        resp = f"Looking at {test_id}, I was testing '{target}'. I expected: '{expected}'. \n\nHowever, {cause}{loc}. This indicates a logic flaw in the C firmware where the edge-case is not properly handled."
+        return {"response": resp}
+        
+    # 2. Check for risk inquiries (e.g. "what risks did you find?")
+    if "risk" in msg or "vulnerabilit" in msg or "boundary" in msg:
+        if not agent.risks:
+            return {"response": "I am currently building the AST. No risks mapped yet."}
+            
+        high_risks = [r for r in agent.risks if r.severity.name == "HIGH"]
+        if high_risks:
+            r = high_risks[0]
+            return {"response": f"I found {len(agent.risks)} total architectural risks. The most critical one is a {r.category.name} risk. {r.explanation}\n\nI flagged this because if this threshold is triggered during flight/operation, it directly alters hardware state."}
+        else:
+            return {"response": f"I found {len(agent.risks)} potential edge cases by parsing the control flow graph. I am generating scenarios to test these boundaries in the simulator now."}
+            
+    # 3. Check for code/logic inquiries
+    if "code" in msg or "logic" in msg or "explain" in msg:
+        files = ", ".join(Path(f).name for f in agent.project.source_files)
+        return {"response": f"I parsed {files}. I extracted the control flow graph using semantic analysis, mapped out the state variables, and identified the Memory-Mapped I/O (MMIO) hardware interactions. I use this graph to autonomously generate failure scenarios."}
+
+    # 4. Default contextual response
+    return {"response": f"I'm actively monitoring the firmware execution. I've run {len(agent.test_results)} tests and found {len(agent.failures)} anomalies. Let me know if you want me to explain a specific failure or risk!"}
+
+
 # ── Firmware Source ───────────────────────────────────────────
 @app.get("/api/firmware/{run_id}")
 async def get_firmware_source(run_id: str):
