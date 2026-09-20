@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, Code2, BrainCircuit } from 'lucide-react';
 
 export default function TestLab({ runId }: { runId: string | null }) {
   const [tests, setTests] = useState<any[]>([]);
+  const [selectedTest, setSelectedTest] = useState<any | null>(null);
+  const [analysis, setAnalysis] = useState<any | null>(null);
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
 
   useEffect(() => {
     if (!runId) return;
@@ -15,8 +20,26 @@ export default function TestLab({ runId }: { runId: string | null }) {
       .catch(console.error);
   }, [runId]);
 
+  const handleTestClick = (test: any) => {
+    setSelectedTest(test);
+    if (test.status === 'FAIL') {
+      setLoadingAnalysis(true);
+      setAnalysis(null);
+      fetch(`/api/runs/${runId}/tests/${test.test_id}/analysis`)
+        .then(res => res.json())
+        .then(data => {
+          setAnalysis(data);
+          setLoadingAnalysis(false);
+        })
+        .catch(err => {
+          console.error(err);
+          setLoadingAnalysis(false);
+        });
+    }
+  };
+
   return (
-    <div className="p-8 h-full flex flex-col gap-6 bg-[#050505]">
+    <div className="p-8 h-full flex flex-col gap-6 bg-[#050505] relative">
       <header className="flex justify-between items-end mb-4">
         <div>
           <h2 className="text-3xl font-black tracking-tighter text-white">Execution Test Lab</h2>
@@ -38,7 +61,7 @@ export default function TestLab({ runId }: { runId: string | null }) {
             </thead>
             <tbody className="divide-y divide-white/5">
               {tests.map(test => (
-                <tr key={test.test_id} className="hover:bg-blue-900/10 transition-colors group cursor-pointer">
+                <tr key={test.test_id} onClick={() => handleTestClick(test)} className="hover:bg-blue-900/10 transition-colors group cursor-pointer">
                   <td className="p-4 font-mono text-gray-400 group-hover:text-blue-400">{test.test_id}</td>
                   <td className="p-4">
                     <span className={`px-3 py-1 rounded-full text-xs font-bold tracking-widest uppercase border ${
@@ -74,6 +97,86 @@ export default function TestLab({ runId }: { runId: string | null }) {
           </table>
         </div>
       </div>
+
+      <AnimatePresence>
+        {selectedTest && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-8"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-[#0a0a0a] border border-white/10 rounded-2xl w-full max-w-4xl max-h-full overflow-hidden flex flex-col shadow-2xl"
+            >
+              <div className="p-6 border-b border-white/5 flex justify-between items-center bg-[#111]">
+                <div className="flex items-center gap-4">
+                  <h3 className="text-2xl font-bold text-white font-mono">{selectedTest.test_id}</h3>
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold tracking-widest uppercase border ${selectedTest.status === 'FAIL' ? 'bg-red-900/20 text-red-400 border-red-500/30' : 'bg-green-900/20 text-green-400 border-green-500/30'}`}>
+                    {selectedTest.status}
+                  </span>
+                </div>
+                <button onClick={() => setSelectedTest(null)} className="text-gray-400 hover:text-white transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="p-6 overflow-auto scrollbar-custom flex-1 space-y-6">
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="bg-[#111] p-4 rounded-xl border border-white/5">
+                    <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2">Target</p>
+                    <p className="font-mono text-blue-400 text-sm">{selectedTest.target}</p>
+                  </div>
+                  <div className="bg-[#111] p-4 rounded-xl border border-white/5">
+                    <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2">Category</p>
+                    <p className="font-mono text-purple-400 text-sm">{selectedTest.category}</p>
+                  </div>
+                </div>
+
+                <div className="bg-[#111] p-4 rounded-xl border border-white/5">
+                  <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2">AI Hypothesis</p>
+                  <p className="text-gray-300 text-sm">{selectedTest.reason}</p>
+                </div>
+
+                {selectedTest.status === 'FAIL' && (
+                  <div className="bg-red-900/10 border border-red-500/20 p-6 rounded-xl space-y-6">
+                    <div className="flex items-center gap-2 text-red-400 font-bold uppercase tracking-widest text-sm mb-4">
+                      <BrainCircuit size={18} />
+                      Gemini Root Cause Analysis
+                    </div>
+                    
+                    {loadingAnalysis ? (
+                      <div className="flex items-center gap-3 text-gray-400 font-mono text-sm animate-pulse">
+                        <div className="w-4 h-4 border-2 border-red-500/50 border-t-red-500 rounded-full animate-spin"></div>
+                        Gemini is analyzing memory states and control flow...
+                      </div>
+                    ) : analysis ? (
+                      <>
+                        <p className="text-gray-300 text-sm leading-relaxed">{analysis.analysis}</p>
+                        
+                        <div className="mt-6">
+                          <div className="flex items-center gap-2 text-blue-400 font-bold uppercase tracking-widest text-sm mb-4">
+                            <Code2 size={18} />
+                            Suggested Code Fix
+                          </div>
+                          <pre className="bg-[#050505] p-4 rounded-lg overflow-x-auto border border-white/5 font-mono text-xs text-green-400">
+                            <code>{analysis.suggested_fix}</code>
+                          </pre>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-gray-500 text-sm italic">Failed to load analysis.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

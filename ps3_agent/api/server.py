@@ -206,6 +206,77 @@ async def get_run_tests(run_id: str):
         })
     return {"tests": tests}
 
+@app.get("/api/runs/{run_id}/tests/{test_id}/analysis")
+async def analyze_test_failure(run_id: str, test_id: str):
+    if run_id not in active_runs:
+        raise HTTPException(404, "Run not found")
+    
+    agent = active_runs[run_id]["agent"]
+    test_result = next((r for r in agent.test_results if r["scenario"].test_id == test_id), None)
+    
+    if not test_result:
+        raise HTTPException(404, "Test not found")
+        
+    if test_result["verification"].status.value == "PASS":
+        return {"analysis": "This test passed successfully. No remediation required.", "suggested_fix": ""}
+        
+    # Build context for Gemini
+    scenario = test_result["scenario"]
+    execution = test_result["execution"]
+    
+    context = f"Firmware: {agent.firmware_path}\n"
+    context += f"Target: {scenario.target}\n"
+    context += f"Test Category: {scenario.category}\n"
+    context += f"AI Hypothesis: {scenario.why_this_test_exists}\n"
+    context += f"Expected Outcome: {scenario.expected_outcome}\n"
+    
+    context += f"Observed UART: {execution.uart}\n"
+    context += f"Observed GPIO: {execution.gpio}\n"
+    
+    diag = test_result.get("diagnosis")
+    if diag:
+        context += f"Diagnosis Cause: {diag.cause_hypothesis}\n"
+        
+    prompt = f"""
+You are an expert embedded C security researcher. Analyze this failed test case and provide two things:
+1. Root Cause Analysis: Why did the firmware fail this boundary/assumption test? (Max 3 sentences)
+2. Suggested Fix: Provide the exact C code snippet to fix this issue.
+
+Context:
+{context}
+
+Format your response strictly as JSON with two keys:
+"root_cause": "your explanation"
+"code_fix": "your C code snippet"
+"""
+    
+    try:
+        import httpx
+        import os
+        import json
+        GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={GEMINI_API_KEY}"
+        
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                url, 
+                json={"contents": [{"parts": [{"text": prompt}]}]}, 
+                timeout=15.0
+            )
+            
+            if resp.status_code == 200:
+                text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+                # Clean markdown json blocks if present
+                text = text.replace("```json", "").replace("```", "").strip()
+                result = json.loads(text)
+                return {
+                    "analysis": result.get("root_cause", "Analysis failed to parse."),
+                    "suggested_fix": result.get("code_fix", "// No code fix provided.")
+                }
+            else:
+                return {"analysis": f"Error calling Gemini: {resp.text}", "suggested_fix": ""}
+    except Exception as e:
+        return {"analysis": f"Analysis failed: {str(e)}", "suggested_fix": "// API Error"}
 
 @app.get("/api/runs/{run_id}/behavior")
 async def get_run_behavior(run_id: str):
