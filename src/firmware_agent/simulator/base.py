@@ -88,6 +88,21 @@ class HardwareConfig(BaseModel):
 
 
 class SimulatorCapabilities(BaseModel):
+    """Capabilities of a simulator backend for a specific chip.
+
+    Fields:
+        chip: The chip name this capability set describes.
+        available: Whether the chip config was found and parsed successfully.
+        error: If not available, a human-readable reason why.
+        can_observe_gpio: Whether GPIO state can be observed during simulation.
+        can_observe_uart: Whether UART output can be captured.
+        can_observe_registers: Whether CPU/peripheral registers can be inspected.
+        can_inject_faults: List of supported fault injection modes.
+        supported_pins: List of valid pin names (e.g. ["PA0", "PA1", ..., "PC15"]).
+    """
+    chip: str = ""
+    available: bool = False
+    error: str = ""
     can_observe_gpio: bool = False
     can_observe_uart: bool = False
     can_observe_registers: bool = False
@@ -103,8 +118,8 @@ class SimulatorAdapter(ABC):
     """
 
     @abstractmethod
-    def capabilities(self, chip: str = "stm32f103") -> SimulatorCapabilities:
-        """Return the capabilities of this simulator."""
+    def capabilities(self, chip: str) -> SimulatorCapabilities:
+        """Return the capabilities of this simulator for the given chip."""
         ...
 
     @abstractmethod

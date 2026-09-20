@@ -23,11 +23,14 @@ def emit_trace_v1(result: SimulationResult, output_path: str, chip: str = "stm32
         # Validate pins against simulator capabilities
         from firmware_agent.simulator.labwired import LabWiredAdapter
         cap = LabWiredAdapter().capabilities(chip)
-        if cap.supported_pins:
+        if cap.available and cap.supported_pins:
             for p in board_descriptor.get("peripherals", []):
                 for pin in p.get("pins", []):
                     if pin not in cap.supported_pins and pin not in ["TX", "RX"]:
                         raise ValueError(f"Descriptor references pin {pin} which simulator does not recognize for chip {chip}")
+        elif not cap.available:
+            import logging
+            logging.getLogger(__name__).warning(f"Chip '{chip}' not available in simulator: {cap.error}. Skipping pin validation.")
                         
     trace = {
         "schema": "trace.v1",

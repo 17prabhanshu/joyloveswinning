@@ -95,7 +95,8 @@ class ReportGenerator:
             "metadata": {
                 "firmware_path": firmware_path,
                 "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "simulator": "LabWiredAdapter"
+                "simulator": "LabWiredAdapter",
+                "version": "1.0.0"
             },
             "rig_view_content": rig_view_content
         }

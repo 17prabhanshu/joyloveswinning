@@ -239,6 +239,15 @@ REPORT_TEMPLATE = """
             <p><strong>Simulator:</strong> {{ metadata.simulator }}</p>
             <p><strong>Agent Version:</strong> {{ metadata.version }}</p>
             
+            <div class="content-section" style="margin-top: 30px;">
+                <h3>Telemetry Viewer</h3>
+                {% if rig_view_content %}
+                <iframe srcdoc="{{ rig_view_content | e }}" style="width:100%; height:700px; border:1px solid var(--accent-color); border-radius:4px;"></iframe>
+                {% else %}
+                <p style="color: var(--text-muted);">No telemetry data available for this run.</p>
+                {% endif %}
+            </div>
+
             {% if agent_activity %}
             <h3>Agent Activity Log</h3>
             <ul>

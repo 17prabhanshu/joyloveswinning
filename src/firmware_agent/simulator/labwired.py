@@ -52,23 +52,89 @@ class LabWiredAdapter(SimulatorAdapter):
         self._current_script: Path | None = None
         self._output_dir: Path | None = None
 
-    def capabilities(self, chip: str = "stm32f103") -> SimulatorCapabilities:
+    def capabilities(self, chip: str) -> SimulatorCapabilities:
+        """Return simulator capabilities for a chip by parsing its upstream YAML config.
+
+        Searches upstream/labwired-core/configs/chips/ for <chip>.yaml (both
+        top-level and onboarding/). Extracts GPIO port peripherals and derives
+        pin names from the port naming convention used by LabWired configs.
+        """
         from firmware_agent.simulator.base import SimulatorCapabilities
-        
-        # In a real implementation we would parse upstream/labwired-core/configs/chips/{chip}.yaml
-        # For STM32F103, it has GPIOA, GPIOB, GPIOC (each 16 pins)
-        pins = []
-        if chip == "stm32f103":
-            for port in ['A', 'B', 'C']:
-                for pin in range(16):
-                    pins.append(f"P{port}{pin}")
-        
+        from pathlib import Path
+
+        chips_dir = Path("upstream/labwired-core/configs/chips")
+        # Search top-level first, then onboarding/
+        candidates = [
+            chips_dir / f"{chip}.yaml",
+            chips_dir / "onboarding" / f"{chip}.yaml",
+        ]
+
+        chip_yaml_path = None
+        for c in candidates:
+            if c.exists():
+                chip_yaml_path = c
+                break
+
+        if chip_yaml_path is None:
+            return SimulatorCapabilities(
+                chip=chip,
+                available=False,
+                error=f"No chip config found. Searched: {[str(c) for c in candidates]}",
+            )
+
+        try:
+            chip_config = yaml.safe_load(chip_yaml_path.read_text())
+        except Exception as e:
+            return SimulatorCapabilities(
+                chip=chip,
+                available=False,
+                error=f"Failed to parse {chip_yaml_path}: {e}",
+            )
+
+        # Derive supported pins from GPIO port peripherals
+        pins: list[str] = []
+        peripherals = chip_config.get("peripherals", [])
+        for periph in peripherals:
+            periph_id = periph.get("id", "")
+            periph_type = periph.get("type", "")
+
+            # LabWired uses three naming conventions for GPIO ports:
+            #   STM32 onboarding: id: gpioPortA, type: stm32f1gpioport → PA0..PA15
+            #   STM32 top-level:  id: gpioa,     type: gpio            → PA0..PA15
+            #   Nordic-style:     id: gpio0,     type: gpio            → P0.0..P0.N
+            if "gpio" in periph_type.lower() or periph_id.lower().startswith("gpio"):
+                # Skip GPIOTE (event controller), not a GPIO port
+                if "gpiote" in periph_id.lower():
+                    continue
+
+                # STM32 convention 1: gpioPortA → port letter A
+                if periph_id.lower().startswith("gpioport"):
+                    port_letter = periph_id.replace("gpioPort", "").replace("gpioport", "").upper()
+                    if len(port_letter) == 1 and port_letter.isalpha():
+                        for pin_num in range(16):
+                            pins.append(f"P{port_letter}{pin_num}")
+                elif periph_id.lower().startswith("gpio"):
+                    suffix = periph_id[4:]  # everything after "gpio"
+                    # STM32 convention 2: gpioa → port letter A (single alpha suffix)
+                    if len(suffix) == 1 and suffix.isalpha():
+                        port_letter = suffix.upper()
+                        for pin_num in range(16):
+                            pins.append(f"P{port_letter}{pin_num}")
+                    # Nordic/generic convention: gpio0 → P0.0..P0.N (numeric suffix)
+                    elif suffix.isdigit():
+                        config_block = periph.get("config", {})
+                        ngpios = config_block.get("ngpios", 16) if isinstance(config_block, dict) else 16
+                        for pin_num in range(ngpios):
+                            pins.append(f"P{suffix}.{pin_num}")
+
         return SimulatorCapabilities(
+            chip=chip,
+            available=True,
             can_observe_gpio=True,
             can_observe_uart=True,
             can_observe_registers=True,
             can_inject_faults=["disconnect", "out_of_range"],
-            supported_pins=pins
+            supported_pins=pins,
         )
 
     def name(self) -> str:

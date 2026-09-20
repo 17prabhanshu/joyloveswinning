@@ -1,5 +1,6 @@
 # Package Layout Migration
 
-- **Current Layout**: The package root is `ps3/`.
-- **Target Layout**: The architecture specifies `src/firmware_agent/`.
-- **Decision**: Since the package is already named `ps3-firmware-agent` in `pyproject.toml`, I have retained the root package name as `ps3` for this phase to avoid breaking all 40+ imports instantly. A bulk sed migration to `src/firmware_agent/` will be performed in a separate isolated commit once Gate 1 checks are validated to minimize import risk during execution.
+- **Previous Layout**: The package root was `ps3/`.
+- **Current Layout**: The package root is `src/firmware_agent/`.
+- **Migration**: All imports were migrated from `ps3.*` to `firmware_agent.*` via a bulk `sed` replacement across all Python source files. The `pyproject.toml` `[tool.setuptools.packages.find]` `where` directive was updated from `["."]` to `["src"]`.
+- **Verification**: `pytest -v` passes 9/9 tests post-migration. No residual `from ps3.` or `import ps3.` references exist in the `src/` tree (confirmed via `grep -r "from ps3\.\|import ps3\." src/` returning empty).

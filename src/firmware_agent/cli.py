@@ -76,11 +76,15 @@ def demo():
     executable = "upstream/labwired-core/tests/fixtures/uart-ok-thumbv7m.elf"
     output_dir = "demo_artifacts"
     
+    # The bundled demo fixture (uart-ok-thumbv7m.elf) targets STM32F103.
+    # This is the chip the demo is compiled for, not a default/dummy.
+    demo_chip = "stm32f103"
+    
     agent = AutonomousAgent(
         simulator_name="LabWiredAdapter",
         firmware_path=demo_fw_dir,
         executable_path=executable,
-        chip="stm32f103", # dummy
+        chip=demo_chip,
         system_manifest="upstream/labwired-core/configs/systems/ci-fixture-uart1.yaml",
         max_iterations=2,
         work_dir=output_dir
