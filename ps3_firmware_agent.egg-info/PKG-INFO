@@ -13,3 +13,6 @@ Requires-Dist: google-generativeai>=0.3; extra == "llm"
 Provides-Extra: dev
 Requires-Dist: pytest>=7.0; extra == "dev"
 Requires-Dist: httpx>=0.24; extra == "dev"
+Provides-Extra: ast
+Requires-Dist: tree-sitter>=0.20; extra == "ast"
+Requires-Dist: tree-sitter-c>=0.20; extra == "ast"

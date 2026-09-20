@@ -117,7 +117,7 @@ export default function DeepDive({ runId }: { runId: string | null }) {
       <motion.div 
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
-        className="w-[400px] flex flex-col gap-4"
+        className="w-[550px] flex flex-col gap-4"
       >
         <div className="flex-1 bg-agent-800 border border-agent-700 rounded-lg flex flex-col overflow-hidden">
           <div className="p-3 border-b border-agent-700 bg-agent-900 flex items-center gap-2">
@@ -152,16 +152,19 @@ export default function DeepDive({ runId }: { runId: string | null }) {
             ))}
           </div>
 
-          <form onSubmit={handleChat} className="p-3 border-t border-agent-700 bg-agent-900">
-            <div className="flex gap-2">
+          <form onSubmit={handleChat} className="p-4 border-t border-agent-700 bg-agent-900 shadow-[0_-10px_20px_rgba(0,0,0,0.3)] relative z-10">
+            <div className="flex gap-3">
               <input 
                 type="text" 
                 value={input}
                 onChange={e => setInput(e.target.value)}
-                placeholder="Ask agent to explain..."
-                className="flex-1 bg-agent-800 border border-agent-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-agent-accent text-white"
+                placeholder="Ask agent to explain a vulnerability or suggest a fix..."
+                className="flex-1 bg-agent-800 border border-agent-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30 text-white placeholder-gray-500 transition-all shadow-inner"
               />
-              <button type="submit" className="bg-agent-accent text-white px-3 py-2 rounded font-medium hover:bg-blue-600 transition-colors">
+              <button 
+                type="submit" 
+                className="bg-blue-600 text-white px-6 py-3 rounded-lg font-bold tracking-widest text-xs uppercase hover:bg-blue-500 hover:shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all flex items-center justify-center min-w-[80px]"
+              >
                 Ask
               </button>
             </div>
