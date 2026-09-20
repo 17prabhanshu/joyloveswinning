@@ -1,5 +1,5 @@
 """
-PS3 Agent — FastAPI Backend Server.
+JOY — FastAPI Backend Server.
 
 Provides the REST API and WebSocket endpoints for the
 Autonomous Firmware Red-Team Agent dashboard.
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
 
 # ── App ───────────────────────────────────────────────────────
-app = FastAPI(title="PS3 Autonomous Firmware Red-Team Agent", version="1.0.0")
+app = FastAPI(title="JOY Autonomous Firmware Red-Team Agent", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -409,7 +409,7 @@ async def chat_with_agent(run_id: str, req: ChatRequest):
     msg = req.message
     
     # Context builder for LLM
-    context_str = f"You are the PS3 Autonomous Red-Team Agent, an expert in embedded firmware security and C programming. You are currently testing a C firmware file.\n\n"
+    context_str = f"You are the JOY Autonomous Red-Team Agent, an expert in embedded firmware security and C programming. You are currently testing a C firmware file.\n\n"
     
     if agent.failures:
         f = agent.failures[-1]
@@ -458,7 +458,7 @@ async def generate_report(run_id: str):
     html = f"""
     <html>
     <head>
-        <title>PS3 Agent - Autonomous Firmware Testing Report</title>
+        <title>JOY - Autonomous Firmware Testing Report</title>
         <style>
             body {{ font-family: system-ui, sans-serif; background: #0a0a0a; color: #fff; padding: 40px; }}
             h1 {{ color: #3b82f6; }}
@@ -532,7 +532,7 @@ async def serve_frontend():
     return HTMLResponse("""
     <html><body style="background:#000;color:#fff;font-family:monospace;display:flex;align-items:center;justify-content:center;height:100vh;">
     <div style="text-align:center">
-        <h1>PS3 Agent</h1>
+        <h1>JOY</h1>
         <p>Frontend not built. Run: cd frontend && npm install && npm run build</p>
         <p>API available at <a href="/health" style="color:#0070f3">/health</a></p>
     </div>

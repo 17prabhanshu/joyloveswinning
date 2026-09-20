@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PS3 Agent | Technical Deep Dive</title>
+    <title>JOY | Technical Deep Dive</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&family=JetBrains+Mono:wght@400;700;800&display=swap');
@@ -144,7 +144,7 @@
             </div>
             
             <h1 class="text-7xl md:text-9xl font-black tracking-tighter mb-6 fade-in-up delay-1 uppercase">
-                <span class="text-white">PS3</span> <span class="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 glow-text-cyan">Agent</span>
+                <span class="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 glow-text-cyan">JOY</span>
             </h1>
             
             <h2 class="text-3xl font-mono text-gray-300 tracking-wide mb-8 fade-in-up delay-2">Autonomous Firmware Red-Teaming</h2>
@@ -211,9 +211,9 @@
                     </div>
                 </div>
 
-                <!-- PS3 Flowchart -->
+                <!-- JOY Flowchart -->
                 <div class="glass p-8 rounded-2xl border-cyan-500/50 fade-in-up delay-3 shadow-[0_0_40px_rgba(0,240,255,0.15)] relative">
-                    <h3 class="text-2xl font-bold mb-6 text-cyan-400 flex items-center gap-3"><span class="text-3xl">🚀</span> Autonomous PS3 Loop</h3>
+                    <h3 class="text-2xl font-bold mb-6 text-cyan-400 flex items-center gap-3"><span class="text-3xl">🚀</span> Autonomous JOY Loop</h3>
                     
                     <svg viewBox="0 0 400 300" class="w-full h-auto font-mono text-xs">
                         <defs>
@@ -259,7 +259,7 @@
             <div class="grid md:grid-cols-2 gap-12 mt-12">
                 <div class="fade-in-up delay-2">
                     <p class="text-gray-300 text-lg mb-8 leading-relaxed">
-                        LLMs struggle with massive C files. Instead of blindly sending text, PS3 parses the firmware using recursive logic to build an <span class="text-cyan-400 font-bold">Abstract Syntax Tree (AST)</span>.
+                        LLMs struggle with massive C files. Instead of blindly sending text, JOY parses the firmware using recursive logic to build an <span class="text-cyan-400 font-bold">Abstract Syntax Tree (AST)</span>.
                     </p>
                     
                     <div class="space-y-4 font-mono text-sm">
@@ -342,7 +342,7 @@
                 <div class="fade-in-up delay-3">
                     <h3 class="text-2xl font-bold text-white mb-4">Precision over Fuzzing</h3>
                     <p class="text-gray-400 text-lg mb-6 leading-relaxed">
-                        Traditional fuzzers mutate data blindly, wasting millions of cycles. PS3's LLM core reads the semantic graph to <strong>mathematically deduce boundaries</strong> and generates highly concentrated payloads designed specifically to break the state machine.
+                        Traditional fuzzers mutate data blindly, wasting millions of cycles. JOY's LLM core reads the semantic graph to <strong>mathematically deduce boundaries</strong> and generates highly concentrated payloads designed specifically to break the state machine.
                     </p>
                     <div class="flex gap-4">
                         <div class="bg-purple-950/40 border border-purple-500/30 rounded-lg p-4 flex-1 text-center">
@@ -367,7 +367,7 @@
             </div>
             <h2 class="text-5xl font-black mb-6 fade-in-up delay-1 text-white uppercase tracking-tight">Deterministic <span class="text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-orange-500 glow-text-pink">Execution Engines</span></h2>
             <p class="text-gray-400 text-xl max-w-4xl mx-auto mb-12 fade-in-up delay-2 font-light">
-                LLMs hallucinate. PS3 verifies everything by executing payloads against highly accurate virtual hardware simulators to capture the raw physical state (GPIO, Registers, UART).
+                LLMs hallucinate. JOY verifies everything by executing payloads against highly accurate virtual hardware simulators to capture the raw physical state (GPIO, Registers, UART).
             </p>
 
             <div class="flex justify-center gap-8 fade-in-up delay-3">

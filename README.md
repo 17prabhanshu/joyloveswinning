@@ -1,10 +1,10 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/17prabhanshu/joyloveswinning/main/frontend/public/vite.svg" width="120" alt="PS3 Agent Logo" />
-  <h1>PS3 Agent 🛡️</h1>
+  <img src="https://raw.githubusercontent.com/17prabhanshu/joyloveswinning/main/frontend/public/vite.svg" width="120" alt="JOY Logo" />
+  <h1>JOY 🛡️</h1>
   <h3>Autonomous Red-Team Agent for Embedded Firmware Security</h3>
   
   <p>
-    <b>PS3 Agent</b> is an advanced, LLM-driven autonomous framework designed to systematically hunt for architectural risks, boundary violations, and hardware I/O mismatches in embedded firmware.
+    <b>JOY</b> is an advanced, LLM-driven autonomous framework designed to systematically hunt for architectural risks, boundary violations, and hardware I/O mismatches in embedded firmware.
   </p>
   
   <p>
@@ -28,7 +28,7 @@
 
 Embedded firmware is notoriously difficult to test because its behavior heavily depends on physical hardware states, timing constraints, and unexpected edge-case inputs. Traditional testing requires engineers to manually write test cases, set up hardware-in-the-loop (HIL) systems, and manually investigate failures.
 
-**PS3 Agent** solves this by acting as a proactive, autonomous Red-Team analyst. It dynamically generates Abstract Syntax Trees (AST), constructs a multi-dimensional behavior graph, and orchestrates an intelligent LLM to explore vulnerabilities in simulated environments (like Renode).
+**JOY** solves this by acting as a proactive, autonomous Red-Team analyst. It dynamically generates Abstract Syntax Trees (AST), constructs a multi-dimensional behavior graph, and orchestrates an intelligent LLM to explore vulnerabilities in simulated environments (like Renode).
 
 > **We don't just generate random tests. The AI dynamically decides what is worth testing next based on real-time execution feedback.**
 
@@ -36,12 +36,12 @@ Embedded firmware is notoriously difficult to test because its behavior heavily 
 
 ## ⚡ Key Innovations
 
-Inspired by cutting-edge academic frameworks like FirmHive, PS3 Agent introduces several unique capabilities:
+Inspired by cutting-edge academic frameworks like FirmHive, JOY introduces several unique capabilities:
 
 - **Recursive Abstract Syntax Tree (AST) Parsing:** Dynamically breaks down C code to isolate bounds, variable states, and hardware I/O control flow.
 - **Tree-of-Risk Exploration Engine:** Systematically hunts for Boundary Off-By-Ones, Unsafe State Transitions, and Unhandled Sensor Disconnects.
 - **Auto-Patching & Remediation:** The AI doesn't just find the bug; it synthesizes a patch and injects it back into the source codebase automatically.
-- **Awwwards-Tier Interactive UX:** Unlike CLI-only academic frameworks, PS3 Agent ships with a gorgeous glassmorphic React dashboard, featuring live behavior graphs and real-time LLM chat capabilities.
+- **Awwwards-Tier Interactive UX:** Unlike CLI-only academic frameworks, JOY ships with a gorgeous glassmorphic React dashboard, featuring live behavior graphs and real-time LLM chat capabilities.
 
 ---
 

@@ -32,7 +32,7 @@ export default function Sidebar({ activeTab, setActiveTab, runStatus, onNewSessi
       <div className="p-6 border-b border-agent-700">
         <h1 className="text-xl font-bold tracking-wider text-white flex items-center gap-2">
           <span className="w-3 h-3 rounded-full bg-agent-accent glow-accent animate-pulse"></span>
-          PS3 AGENT
+          JOY
         </h1>
         <p className="text-xs text-gray-400 mt-2 font-mono uppercase tracking-widest">Autonomous Red-Team</p>
       </div>
