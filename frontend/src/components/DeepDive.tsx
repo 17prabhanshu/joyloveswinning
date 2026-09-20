@@ -1,7 +1,32 @@
 import { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
-import { Terminal, Code, Cpu } from 'lucide-react';
+import { Terminal, Code, Cpu, Bot, User } from 'lucide-react';
 import { motion } from 'framer-motion';
+
+const renderMessage = (text: string) => {
+  let cleanText = text.startsWith('[Agent]') ? text.substring(7).trim() : text;
+  cleanText = cleanText.startsWith('[Gemini Agent]') ? cleanText.substring(14).trim() : cleanText;
+
+  return cleanText.split('\n').map((line, i) => {
+    if (!line.trim()) return <div key={i} className="h-2"></div>;
+    
+    const parts = line.split(/(\*\*.*?\*\*|`.*?`)/g);
+    return (
+      <p key={i} className="mb-1.5 leading-relaxed">
+        {parts.map((part, j) => {
+          if (part.startsWith('**') && part.endsWith('**')) {
+            return <strong key={j} className="text-white font-semibold">{part.slice(2, -2)}</strong>;
+          }
+          if (part.startsWith('`') && part.endsWith('`')) {
+            return <code key={j} className="bg-black/30 border border-white/10 text-cyan-400 px-1.5 py-0.5 rounded font-mono text-xs">{part.slice(1, -1)}</code>;
+          }
+          // Process *italic* if needed, but we'll stick to bold for now
+          return <span key={j}>{part}</span>;
+        })}
+      </p>
+    );
+  });
+};
 
 export default function DeepDive({ runId }: { runId: string | null }) {
   const [files, setFiles] = useState<Record<string, string>>({});
@@ -103,17 +128,25 @@ export default function DeepDive({ runId }: { runId: string | null }) {
           <div className="flex-1 p-4 overflow-y-auto space-y-4 scrollbar-custom">
             {chatLog.map((msg, i) => (
               <motion.div 
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
                 key={i} 
-                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
               >
-                <div className={`max-w-[85%] rounded-lg p-3 text-sm ${
+                <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center border shadow-sm ${
                   msg.role === 'user' 
-                    ? 'bg-agent-accent text-white rounded-br-none' 
-                    : 'bg-agent-900 border border-agent-700 text-gray-300 rounded-bl-none font-mono'
+                    ? 'bg-blue-600/20 border-blue-500/50 text-blue-400' 
+                    : 'bg-cyan-900/30 border-cyan-500/50 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.2)]'
                 }`}>
-                  {msg.content}
+                  {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
+                </div>
+                
+                <div className={`max-w-[75%] rounded-2xl p-4 text-sm shadow-md ${
+                  msg.role === 'user' 
+                    ? 'bg-blue-600 text-white rounded-tr-none' 
+                    : 'bg-[#111111] border border-white/10 text-gray-300 rounded-tl-none font-sans'
+                }`}>
+                  {msg.role === 'user' ? msg.content : renderMessage(msg.content)}
                 </div>
               </motion.div>
             ))}
