@@ -424,7 +424,7 @@ async def chat_with_agent(run_id: str, req: ChatRequest):
     if agent.risks:
         context_str += f"We have also mapped {len(agent.risks)} architectural risks in the AST (Abstract Syntax Tree) related to boundary conditions and hardware I/O.\n\n"
 
-    prompt = f"{context_str}User Question: {msg}\n\nAnswer concisely and technically as the AI agent. Do not use markdown headers, just plain text or short lists."
+    prompt = f"{context_str}User Question: {msg}\n\nRespond as the AI Agent. If the user says a greeting (like 'hey' or 'hello'), just greet them back naturally! Otherwise, answer concisely and technically. Do not use markdown headers, just plain text or short lists."
 
     try:
         import httpx
