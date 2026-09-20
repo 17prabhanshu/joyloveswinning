@@ -212,6 +212,10 @@ async def get_run_tests(run_id: str):
             "gpio": r["execution"].gpio if r.get("execution") else {},
             "uart": r["execution"].uart if r.get("execution") else [],
             "simulator": r["execution"].simulator if r.get("execution") else "Unknown",
+            "minimized": {
+                "original": r["minimized"].original_steps,
+                "reduced": r["minimized"].minimized_steps
+            } if r.get("minimized") else None
         })
     return {"tests": tests}
 

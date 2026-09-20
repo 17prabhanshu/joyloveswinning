@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Code2, BrainCircuit, Wrench, Check, Terminal } from 'lucide-react';
+import { X, Code2, BrainCircuit, Wrench, Check, Terminal, Zap } from 'lucide-react';
 
 export default function TestLab({ runId }: { runId: string | null }) {
   const [tests, setTests] = useState<any[]>([]);
@@ -175,7 +175,18 @@ export default function TestLab({ runId }: { runId: string | null }) {
               </div>
               
               <div className="p-8 overflow-auto scrollbar-custom flex-1 space-y-8">
-                <div className="grid grid-cols-2 gap-6">
+                <div className={`grid gap-6 ${selectedTest.minimized ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                  {selectedTest.minimized && (
+                    <div className="bg-[#1a0f0f] p-5 rounded-xl border border-red-500/20 shadow-inner relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 w-16 h-16 bg-red-500/10 rounded-full blur-xl -mr-8 -mt-8"></div>
+                      <p className="text-xs text-red-400 font-bold uppercase tracking-widest mb-2 flex items-center gap-1">
+                        <Zap size={12} className="animate-pulse" /> Delta Minimizer
+                      </p>
+                      <p className="font-mono text-red-300 text-[11px] leading-tight">
+                        Reduced from <span className="font-bold text-white px-1">{selectedTest.minimized.original}</span> to <span className="font-bold text-white px-1">{selectedTest.minimized.reduced}</span> critical steps to trigger failure.
+                      </p>
+                    </div>
+                  )}
                   <div className="bg-[#0f0f0f] p-5 rounded-xl border border-white/5 shadow-inner">
                     <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2">Execution Target</p>
                     <p className="font-mono text-blue-400 text-sm bg-[#151515] p-2 rounded inline-block border border-blue-500/10">{selectedTest.target}</p>
