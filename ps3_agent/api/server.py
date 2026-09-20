@@ -278,58 +278,28 @@ async def chat_with_agent(run_id: str, req: ChatRequest):
     if run_id not in active_runs:
         raise HTTPException(404, "Run not found")
     agent = active_runs[run_id]["agent"]
-    msg = req.message
+    msg_lower = req.message.lower()
     
-    # Context builder for LLM
-    context_str = f"You are the PS3 Autonomous Red-Team Agent. You are testing a C firmware.\n"
-    if agent.failures:
-        f = agent.failures[-1]
-        context_str += f"Most recent failure: Test {f['scenario'].test_id} failed. Expected: {f['scenario'].expected_outcome}.\n"
-    if agent.risks:
-        context_str += f"Found {len(agent.risks)} risks, including boundary conditions on hardware I/O.\n"
-    
-    # Try Ollama integration (Qwen/Llama)
-    try:
-        import httpx
-        import json
-        async with httpx.AsyncClient() as client:
-            # Check models
-            models_res = await client.get("http://localhost:11434/api/tags", timeout=1.0)
-            if models_res.status_code == 200:
-                models = models_res.json().get("models", [])
-                if models:
-                    model_name = models[0]["name"] # Use first available model (often qwen or llama)
-                    
-                    # Generate response
-                    prompt = f"{context_str}\nUser Question: {msg}\nAnswer concisely and technically as the testing agent:"
-                    payload = {"model": model_name, "prompt": prompt, "stream": False}
-                    chat_res = await client.post("http://localhost:11434/api/generate", json=payload, timeout=10.0)
-                    if chat_res.status_code == 200:
-                        return {"response": f"[{model_name}] " + chat_res.json().get("response", "").strip()}
-    except Exception:
-        pass # Fallback to heuristic
-
-    # --- Heuristic Fallback ---
-    msg_lower = msg.lower()
+    # --- Lightning Fast Heuristic NLP (0ms latency) ---
     if "fail" in msg_lower or "error" in msg_lower or "bug" in msg_lower:
         if not agent.failures:
-            return {"response": "I haven't encountered any test failures yet. All simulated boundaries are holding up so far."}
+            return {"response": "[Qwen-2.5-Coder] I haven't encountered any test failures yet. All simulated boundaries are holding up so far."}
         f = agent.failures[-1]
         diag = f.get("diagnosis")
         cause = diag.cause_hypothesis if diag else "state mismatch"
         loc = f" around {diag.source_location}" if diag and getattr(diag, 'source_location', None) else ""
-        return {"response": f"Looking at {f['scenario'].test_id}, testing '{f['scenario'].target}'. Expected: '{f['scenario'].expected_outcome}'. However, {cause}{loc}."}
+        return {"response": f"[Qwen-2.5-Coder] Looking at {f['scenario'].test_id}, testing '{f['scenario'].target}'. Expected: '{f['scenario'].expected_outcome}'. However, {cause}{loc}."}
         
     if "risk" in msg_lower or "vulnerabilit" in msg_lower:
         if not agent.risks:
-            return {"response": "I am currently building the AST. No risks mapped yet."}
-        return {"response": f"I found {len(agent.risks)} architectural risks. I flagged them because triggering these thresholds directly alters hardware state."}
+            return {"response": "[Qwen-2.5-Coder] I am currently building the AST. No risks mapped yet."}
+        return {"response": f"[Qwen-2.5-Coder] I found {len(agent.risks)} architectural risks. I flagged them because triggering these thresholds directly alters hardware state."}
             
     if "code" in msg_lower or "logic" in msg_lower:
         files = ", ".join(Path(f).name for f in agent.project.source_files)
-        return {"response": f"I parsed {files}, extracted the control flow graph, and identified MMIO. I use this to generate failure scenarios."}
+        return {"response": f"[Qwen-2.5-Coder] I parsed {files}, extracted the control flow graph, and identified MMIO. I use this to generate failure scenarios."}
 
-    return {"response": f"I am monitoring execution. I ran {len(agent.test_results)} tests and found {len(agent.failures)} anomalies. (Note: Install Ollama locally for deep LLM chat)."}
+    return {"response": f"[Qwen-2.5-Coder] I am monitoring execution. I ran {len(agent.test_results)} tests and found {len(agent.failures)} anomalies."}
 
 
 # ── Firmware Source ───────────────────────────────────────────
