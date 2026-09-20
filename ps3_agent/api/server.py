@@ -1,10 +1,13 @@
+from __future__ import annotations
+import os
+from dotenv import load_dotenv
+load_dotenv()
 """
 JOY — FastAPI Backend Server.
 
 Provides the REST API and WebSocket endpoints for the
 Autonomous Firmware Red-Team Agent dashboard.
 """
-from __future__ import annotations
 
 import asyncio
 import json
@@ -255,7 +258,7 @@ Format your response strictly as JSON with two keys:
     
     try:
         import json
-        resp = await llm_gateway.generate_content(prompt)
+        resp = await llm_gateway.generate_content(prompt, default_fallback="{ \"root_cause\": \"Cache Miss (Replay Mode)\", \"code_fix\": \"// No fix in replay mode\" }")
         
         if resp.status_code == 200:
             text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
@@ -364,7 +367,7 @@ Suggested Fix to Apply:
 
 Return ONLY the complete, fully updated C code. Do not include any explanations. Do not wrap it in ```c markdown blocks. Just return the raw C code so it can be saved directly to a file.
 """
-        resp = await llm_gateway.generate_content(prompt)
+        resp = await llm_gateway.generate_content(prompt, default_fallback="// Cached fallback patch\nvoid control_fan(void) {\n  // Safe mode\n}")
         
         if resp.status_code == 200:
             data = resp.json()
