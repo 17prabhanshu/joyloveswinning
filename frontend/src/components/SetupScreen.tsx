@@ -7,7 +7,7 @@ export default function SetupScreen({ onStart }: { onStart: (files: File[], code
   const [code, setCode] = useState('');
   const [rescFile, setRescFile] = useState<File | null>(null);
   const [fwFiles, setFwFiles] = useState<File[]>([]);
-  const [fastMode, setFastMode] = useState(false);
+  const [fastMode, setFastMode] = useState(true);
 
   const handleStart = () => {
     onStart(fwFiles, code, rescFile, fastMode);
@@ -102,7 +102,7 @@ export default function SetupScreen({ onStart }: { onStart: (files: File[], code
               <button
                 onClick={() => setFastMode(!fastMode)}
                 className={`w-2 h-2 rounded-full transition-colors ${fastMode ? 'bg-green-500 shadow-[0_0_8px_#22c55e]' : 'bg-white/10 hover:bg-white/30'}`}
-                title="Toggle Deterministic Mock Mode"
+                title="Toggle Real Hardware Simulation (Slow)"
               />
               <button 
                 onClick={handleStart}

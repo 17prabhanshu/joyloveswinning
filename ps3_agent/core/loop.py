@@ -55,7 +55,7 @@ class AgentLoop:
         project: FirmwareProject,
         firmware_path: str,
         max_tests: int = 30,
-        fast_mode: bool = False,
+        fast_mode: bool = True,
         on_event: Optional[Callable[[AgentEvent], None]] = None,
     ):
         self.project = project
