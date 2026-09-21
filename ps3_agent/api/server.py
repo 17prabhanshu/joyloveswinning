@@ -199,24 +199,50 @@ async def get_run_tests(run_id: str):
     if run_id not in active_runs:
         raise HTTPException(404, "Run not found")
     agent = active_runs[run_id]["agent"]
+    
+    # Get all generated tests that were selected
+    selected_scenarios = [c.scenario for c in agent.candidates if c.selected]
+    
+    # Map completed test results
+    results_map = {r["scenario"].test_id: r for r in agent.test_results}
+    
     tests = []
-    for r in agent.test_results:
-        tests.append({
-            "test_id": r["scenario"].test_id,
-            "target": r["scenario"].target,
-            "category": r["scenario"].category,
-            "reason": r["scenario"].why_this_test_exists,
-            "expected": r["scenario"].expected_outcome,
-            "status": r["verification"].status.value,
-            "priority": r.get("priority", 0),
-            "gpio": r["execution"].gpio if r.get("execution") else {},
-            "uart": r["execution"].uart if r.get("execution") else [],
-            "simulator": r["execution"].simulator if r.get("execution") else "Unknown",
-            "minimized": {
-                "original": r["minimized"].original_steps,
-                "reduced": r["minimized"].minimized_steps
-            } if r.get("minimized") else None
-        })
+    for scenario in selected_scenarios:
+        res = results_map.get(scenario.test_id)
+        if res:
+            # Finished test
+            tests.append({
+                "test_id": res["scenario"].test_id,
+                "target": res["scenario"].target,
+                "category": res["scenario"].category,
+                "reason": res["scenario"].why_this_test_exists,
+                "expected": res["scenario"].expected_outcome,
+                "status": res["verification"].status.value,
+                "priority": res.get("priority", 0),
+                "gpio": res["execution"].gpio if res.get("execution") else {},
+                "uart": res["execution"].uart if res.get("execution") else [],
+                "simulator": res["execution"].simulator if res.get("execution") else "Unknown",
+                "minimized": {
+                    "original": res["minimized"].original_steps,
+                    "reduced": res["minimized"].minimized_steps
+                } if res.get("minimized") else None
+            })
+        else:
+            # Pending/Running test
+            tests.append({
+                "test_id": scenario.test_id,
+                "target": scenario.target,
+                "category": scenario.category,
+                "reason": scenario.why_this_test_exists,
+                "expected": scenario.expected_outcome,
+                "status": "RUNNING",
+                "priority": 0,
+                "gpio": {},
+                "uart": [],
+                "simulator": "Wokwi",
+                "minimized": None
+            })
+            
     return {"tests": tests}
 
 @app.get("/api/runs/{run_id}/tests/{test_id}/analysis")
