@@ -8,10 +8,26 @@ from pathlib import Path
 
 logger = logging.getLogger("compiler")
 
+import hashlib
+import threading
+
+_compile_lock = threading.Lock()
+
 def compile_c_to_arduino(c_code: str, fqbn: str = "arduino:avr:uno") -> str:
-    temp_dir = tempfile.mkdtemp(prefix="ps3_build_")
-    sketch_dir = os.path.join(temp_dir, "joy_firmware")
-    os.makedirs(sketch_dir)
+    # Hash the c_code + a version string to create a deterministic cache directory
+    CACHE_VERSION = "v2"
+    code_hash = hashlib.sha256((c_code + CACHE_VERSION).encode()).hexdigest()[:16]
+    sketch_dir = os.path.join(tempfile.gettempdir(), f"ps3_build_{code_hash}")
+    
+    with _compile_lock:
+        # If it's already compiled, just return it!
+        elf_path = os.path.join(sketch_dir, "joy_firmware", "joy_firmware.ino.elf")
+        if os.path.exists(elf_path):
+            logger.info(f"Using cached Arduino build in {sketch_dir}...")
+            return os.path.join(sketch_dir, "joy_firmware")
+            
+        os.makedirs(os.path.join(sketch_dir, "joy_firmware"), exist_ok=True)
+        sketch_dir = os.path.join(sketch_dir, "joy_firmware")
     
     # 1. Replace the mock bodies with Arduino bodies using a simple string replacement
     # We just replace the entire function bodies safely.
@@ -41,9 +57,14 @@ void loop() {
             simulated_adc_value = s.toInt();
             Serial.print("INJECTED:");
             Serial.println(simulated_adc_value);
+            
+            // Run the firmware logic once per injected value
+            firmware_tick();
+            
+            // Signal to Wokwi that the test step is complete so it can exit immediately
+            Serial.println("TICK_DONE");
         }
     }
-    firmware_tick();
     delay(10);
 }
 """

@@ -54,16 +54,28 @@ class WokwiAdapter:
         firmware_hash = prepared.get("firmware_hash", "unknown")
         scenario: TestScenario = prepared["scenario"]
         c_code = prepared.get("c_code", "")
+        # Create a unique work dir for this specific test execution
+        import tempfile, shutil
+        work_dir = tempfile.mkdtemp(prefix=f"wokwi_test_{scenario.test_id}_")
+        
         started_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         t0 = time.monotonic()
 
-        # --- 1. Compile ---
+        # --- 1. Compile (Cached) ---
         try:
             build_dir = compile_c_to_arduino(c_code)
         except Exception as e:
             return self._error_result(firmware_hash, scenario, started_at, 0, f"Compilation failed: {e}")
 
-        # --- 2. Generate diagram.json (correct board type!) ---
+        # Copy the ELF file to the isolated work dir
+        elf_source = os.path.join(build_dir, "joy_firmware.ino.elf")
+        elf_dest = os.path.join(work_dir, "joy_firmware.ino.elf")
+        if os.path.exists(elf_source):
+            shutil.copy2(elf_source, elf_dest)
+        else:
+            return self._error_result(firmware_hash, scenario, started_at, 0, "ELF file not found after compilation")
+
+        # --- 2. Generate diagram.json ---
         diagram = {
             "version": 1,
             "author": "JOY",
@@ -73,12 +85,10 @@ class WokwiAdapter:
             ],
             "connections": [],
         }
-        with open(os.path.join(build_dir, "diagram.json"), "w") as f:
+        with open(os.path.join(work_dir, "diagram.json"), "w") as f:
             json.dump(diagram, f)
 
         # --- 3. Parse target temperature from scenario steps ---
-        # The actual test value is in the scenario steps, not in scenario.target
-        # (which contains source location strings like "control_fan()")
         target_temp = 25
         for step in scenario.steps:
             action = step.get("action", "")
@@ -95,33 +105,30 @@ class WokwiAdapter:
         logger.info(f"Parsed target_temp={target_temp} from scenario steps for {scenario.test_id}")
 
         # --- 4. Generate scenario.yaml ---
-        # wait-serial / write-serial are the correct Wokwi scenario keys.
-        # We wait for BOOT first (confirms firmware actually started), then inject temp.
         scenario_lines = [
             "version: 1",
             "name: 'PS3 Test Scenario'",
             "steps:",
             "  - wait-serial: 'BOOT:'",
             f"  - write-serial: '{target_temp}\\n'",
-            "  - wait-serial: 'STATE:'",
+            "  - wait-serial: 'TICK_DONE'",
         ]
         scenario_yaml = "\n".join(scenario_lines) + "\n"
-        with open(os.path.join(build_dir, "scenario.yaml"), "w") as f:
+        with open(os.path.join(work_dir, "scenario.yaml"), "w") as f:
             f.write(scenario_yaml)
 
         # --- 5. Run wokwi-cli ---
-        elf_path = os.path.join(build_dir, "joy_firmware.ino.elf")
         cmd = [
             WOKWI_CLI_PATH,
             "--diagram-file", "diagram.json",
-            "--elf", elf_path,
+            "--elf", "joy_firmware.ino.elf",
             "--scenario", "scenario.yaml",
             "--timeout", str(timeout_ms),
             "--timeout-exit-code", "1",
         ]
 
-        logger.info(f"Executing Wokwi scenario in {build_dir} with temp={target_temp}")
-        proc = subprocess.run(cmd, cwd=build_dir, capture_output=True, text=True, env=os.environ.copy())
+        logger.info(f"Executing Wokwi scenario for {scenario.test_id} in {work_dir} with temp={target_temp}")
+        proc = subprocess.run(cmd, cwd=work_dir, capture_output=True, text=True, env=os.environ.copy())
         elapsed_ms = round((time.monotonic() - t0) * 1000, 1)
 
         # --- 6. Log raw output ---

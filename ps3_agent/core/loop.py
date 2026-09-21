@@ -55,7 +55,7 @@ class AgentLoop:
         project: FirmwareProject,
         firmware_path: str,
         max_tests: int = 30,
-        fast_mode: bool = True,
+        fast_mode: bool = False,
         on_event: Optional[Callable[[AgentEvent], None]] = None,
     ):
         self.project = project
@@ -257,7 +257,7 @@ class AgentLoop:
             return candidate, execution, verification, result_entry
 
         futures = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
             for candidate in selected[:self.max_tests]:
                 futures.append(executor.submit(run_candidate, candidate))
                 
