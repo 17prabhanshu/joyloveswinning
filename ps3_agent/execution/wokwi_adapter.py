@@ -26,10 +26,9 @@ class WokwiAdapter:
         return "0.27.1"
 
     def health_check(self) -> dict[str, Any]:
-        """Check if wokwi-cli is available and token is set."""
-        token = os.environ.get("WOKWI_CLI_TOKEN", "")
+        """Check if wokwi-cli is available."""
         cli_exists = os.path.isfile(WOKWI_CLI_PATH)
-        healthy = bool(token) and cli_exists
+        healthy = cli_exists
         return {
             "available": healthy,
             "status": "healthy" if healthy else "unhealthy",

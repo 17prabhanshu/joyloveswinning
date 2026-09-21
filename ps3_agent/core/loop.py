@@ -174,15 +174,12 @@ class AgentLoop:
         )
 
         # ── Phase 5: Execute Loop ──────────────────────────────
-        from ps3_agent.execution.simulator import get_default_simulator, DeterministicSimulator
+        from ps3_agent.execution.simulator import get_default_simulator
         from ps3_agent.verification.verifier import verify
         from ps3_agent.diagnosis.investigator import diagnose_failure
         from ps3_agent.planner.adaptive import select_next_test
 
-        if self.fast_mode:
-            simulator = DeterministicSimulator()
-        else:
-            simulator = get_default_simulator()
+        simulator = get_default_simulator()
             
         selected = [c for c in self.candidates if c.selected]
         tests_executed = 0

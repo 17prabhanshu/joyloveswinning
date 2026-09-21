@@ -53,7 +53,7 @@ class LLMGateway:
         payload = {"model": model, "prompt": prompt, "stream": False}
         try:
             async with httpx.AsyncClient() as client:
-                resp = await client.post(self.ollama_url, json=payload, timeout=30.0)
+                resp = await client.post(self.ollama_url, json=payload, timeout=180.0)
                 if resp.status_code == 200:
                     data = resp.json()
                     return data.get("response")
