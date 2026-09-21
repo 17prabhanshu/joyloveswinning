@@ -50,7 +50,7 @@ function App() {
     switch (activeTab) {
       case 'Overview': return <Overview runId={runId} />;
       case 'Test Lab': return <TestLab runId={runId} />;
-      case 'Deep Dive (Code)': return <DeepDive runId={runId} />;
+      case 'AI Copilot': return <DeepDive runId={runId} />;
       case 'Behavior Graph': return <BehaviorGraph runId={runId} />;
       case 'Failures': return <Failures runId={runId} />;
       case 'Regressions': return <Regressions runId={runId} />;

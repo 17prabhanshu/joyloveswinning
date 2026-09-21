@@ -159,7 +159,7 @@ export default function Overview({ runId }: { runId: string | null }) {
           </div>
           <div className="flex-1 overflow-auto p-3 space-y-1 scrollbar-custom">
             <AnimatePresence initial={false}>
-              {tests.map((test: any, i: number) => (
+              {tests.map((test: any) => (
                 <motion.div
                   key={test.test_id}
                   initial={false}

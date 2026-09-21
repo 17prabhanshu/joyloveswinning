@@ -40,7 +40,9 @@ class LLMGateway:
         self.semaphore = asyncio.Semaphore(max_concurrency)
         self.replay_mode = replay_mode
         self.api_key = os.environ.get("GEMINI_API_KEY", "")
-        self.fallback_chain = ["gemini-3.7-flash", "gemini-3.8-flash", "gemini-3.5-flash"]
+        # Re-enabling Gemini as the primary brain for blazing speed and zero laptop lag!
+        self.fallback_chain = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash"]
+        # Keeping ultra-fast 1.5B model as the offline safety net
         self.ollama_model = "qwen2.5:1.5b"
         self.ollama_url = "http://localhost:11434/api/generate"
         
@@ -64,17 +66,12 @@ class LLMGateway:
     async def generate_content(self, prompt: str, default_fallback: str = "") -> httpx.Response:
         """
         Main entry point for generating content.
-        Returns a mock httpx.Response object to maintain compatibility with existing consumers.
+        Features a robust fallback chain: Local Cache -> Gemini Models -> Local Ollama -> Safe Default
         """
         async with self.semaphore:
-            # Replay Mode Safety Net
+            # 1. Replay Mode Safety Net
             if self.replay_mode and llm_cache:
-                # Check Ollama cache first in replay mode
-                cache_key = self._hash_prompt(self.ollama_model, prompt)
-                if cache_key in llm_cache:
-                    logger.info(f"[Replay Mode] Serving cached response for {self.ollama_model}")
-                    return self._mock_response(200, llm_cache[cache_key])
-                for model in self.fallback_chain:
+                for model in self.fallback_chain + [self.ollama_model]:
                     cache_key = self._hash_prompt(model, prompt)
                     if cache_key in llm_cache:
                         logger.info(f"[Replay Mode] Serving cached response for {model}")
@@ -82,66 +79,45 @@ class LLMGateway:
                 logger.warning(f"[Replay Mode] Cache miss for prompt. Returning safe default.")
                 return self._mock_response(200, default_fallback)
 
-            # Try Ollama Primary
-            cache_key = self._hash_prompt(self.ollama_model, prompt)
-            if llm_cache and cache_key in llm_cache:
-                logger.info(f"[Cache Hit] Returning cached response for {self.ollama_model}")
-                return self._mock_response(200, llm_cache[cache_key])
-                
-            logger.info(f"Attempting Ollama with model {self.ollama_model}")
-            ollama_text = await self._call_ollama(prompt, self.ollama_model)
-            if ollama_text is not None:
-                if llm_cache:
-                    llm_cache[cache_key] = ollama_text
-                return self._mock_response(200, ollama_text)
-                
-            logger.warning("Ollama failed. Falling back to Gemini.")
-
-            if not self.api_key:
-                logger.warning("No GEMINI_API_KEY found.")
-                if default_fallback:
-                    return self._mock_response(200, default_fallback)
-                return self._mock_response(500, "No API Key configured.")
-
-            # Standard Execution with Fallbacks (Gemini)
-            for model in self.fallback_chain:
-                cache_key = self._hash_prompt(model, prompt)
-                
-                # Check normal cache
-                if llm_cache and cache_key in llm_cache:
-                    logger.info(f"[Cache Hit] Returning cached response for {model}")
-                    return self._mock_response(200, llm_cache[cache_key])
+            # 2. Cloud API (Gemini) Fallback Chain
+            if self.api_key:
+                for model in self.fallback_chain:
+                    cache_key = self._hash_prompt(model, prompt)
                     
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={self.api_key}"
-                payload = {"contents": [{"parts": [{"text": prompt}]}]}
-                
-                # Attempt to call the model (with 429 backoff)
-                resp = await self._call_with_backoff(url, payload, model)
-                
-                if resp and resp.status_code == 200:
-                    # Cache the successful response
-                    if llm_cache:
-                        try:
-                            # Try to parse and extract text just to verify it's valid, then cache the raw text
-                            data = resp.json()
-                            text = data["candidates"][0]["content"]["parts"][0]["text"]
-                            llm_cache[cache_key] = text
-                        except Exception as e:
-                            logger.error(f"Failed to parse and cache response: {e}")
-                    return resp
+                    if llm_cache and cache_key in llm_cache:
+                        logger.info(f"[Cache Hit] Returning cached response for {model}")
+                        return self._mock_response(200, llm_cache[cache_key])
+                        
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={self.api_key}"
+                    payload = {"contents": [{"parts": [{"text": prompt}]}]}
                     
-                # If 503 Capacity issue, gracefully degrade to next model in chain
-                if resp and resp.status_code == 503:
-                    logger.warning(f"[{model}] 503 Capacity Error. Falling back to next model.")
-                    continue
+                    resp = await self._call_with_backoff(url, payload, model)
                     
-                # Other errors (e.g., 400 Bad Request) usually mean the prompt is bad, no need to fallback
-                if resp and resp.status_code != 429:
-                    logger.error(f"[{model}] Unhandled error {resp.status_code}: {resp.text}")
-                    return resp
+                    if resp and resp.status_code == 200:
+                        if llm_cache:
+                            try:
+                                data = resp.json()
+                                text = data["candidates"][0]["content"]["parts"][0]["text"]
+                                llm_cache[cache_key] = text
+                            except Exception as e:
+                                logger.error(f"Failed to cache response: {e}")
+                        return resp
+                        
+                    if resp and resp.status_code in [503, 429]:
+                        logger.warning(f"[{model}] API Error ({resp.status_code}). Falling back to next model.")
+                        continue
+                        
+            else:
+                logger.warning("No GEMINI_API_KEY found. Bypassing cloud models.")
 
-            # If ALL models fail, return the safe default if provided
-            logger.error("All models in fallback chain failed.")
+            # 3. Local Open-Source LLM Fallback (Ollama)
+            logger.info(f"[Ollama] Falling back to local offline model: {self.ollama_model}")
+            ollama_resp_text = await self._call_ollama(prompt, self.ollama_model)
+            if ollama_resp_text:
+                return self._mock_response(200, ollama_resp_text)
+
+            # 4. Total Failure - Use Safe Default
+            logger.error("All AI models (Cloud & Local) in fallback chain failed.")
             if default_fallback:
                 return self._mock_response(200, default_fallback)
             

@@ -15,37 +15,50 @@ import dagre from 'dagre';
 import { motion } from 'framer-motion';
 import { Code2, Cpu, Activity, Zap, Variable, Database } from 'lucide-react';
 
-// Custom Node implementation
 const CustomNode = ({ data }: any) => {
   const Icon = data.icon;
   return (
-    <div 
-      className={`relative px-4 py-3 bg-[#090b11]/90 backdrop-blur-md rounded-xl border min-w-[180px]`}
-      style={{ boxShadow: `0 0 20px ${data.shadowColor}`, borderColor: `${data.color}80` }}
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      whileHover={{ scale: 1.05, zIndex: 50 }}
+      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+      className="relative px-5 py-4 bg-gradient-to-b from-[#0a0a0a]/90 to-[#050505]/95 backdrop-blur-xl rounded-2xl border min-w-[200px] overflow-hidden group cursor-pointer"
+      style={{ 
+        boxShadow: `0 0 30px ${data.shadowColor}, inset 0 1px 0 rgba(255,255,255,0.1)`, 
+        borderColor: `${data.color}50` 
+      }}
     >
-      <Handle type="target" position={Position.Top} className="w-2 h-2 !bg-white/50 border-none" />
+      <div 
+        className="absolute inset-0 opacity-0 group-hover:opacity-20 transition-opacity duration-500 blur-xl pointer-events-none"
+        style={{ backgroundColor: data.color }}
+      ></div>
+
+      <Handle type="target" position={Position.Top} className="w-2 h-2 !bg-white border-none shadow-[0_0_10px_rgba(255,255,255,0.8)]" />
       
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4 relative z-10">
         <div 
-          className="flex items-center justify-center w-8 h-8 rounded-lg border"
-          style={{ backgroundColor: `${data.color}1a`, borderColor: `${data.color}33` }}
+          className="flex items-center justify-center w-10 h-10 rounded-xl border shadow-inner"
+          style={{ backgroundColor: `${data.color}20`, borderColor: `${data.color}40`, color: data.color }}
         >
-          <Icon size={16} color={data.color} />
+          <Icon size={20} className="drop-shadow-md" />
         </div>
         <div>
-          <div className="text-[9px] font-bold tracking-widest text-gray-500 uppercase">{data.kind}</div>
-          <div className="text-xs font-mono font-medium text-white tracking-tight mt-0.5">{data.label}</div>
+          <div className="text-[10px] font-bold tracking-widest text-gray-400 uppercase opacity-80">{data.kind}</div>
+          <div className="text-sm font-mono font-bold text-white tracking-tight mt-0.5 group-hover:text-cyan-100 transition-colors">{data.label}</div>
         </div>
       </div>
       
       {data.file && (
-        <div className="mt-2 text-[8px] font-mono text-gray-600 truncate border-t border-white/5 pt-1">
-          {data.file}:{data.line}
+        <div className="mt-3 pt-3 border-t border-white/5 relative z-10">
+          <div className="text-[10px] text-gray-500 font-mono leading-relaxed truncate max-w-[180px]">
+            {data.file}:{data.line}
+          </div>
         </div>
       )}
 
-      <Handle type="source" position={Position.Bottom} className="w-2 h-2 !bg-white/50 border-none" />
-    </div>
+      <Handle type="source" position={Position.Bottom} className="w-2 h-2 !bg-white border-none shadow-[0_0_10px_rgba(255,255,255,0.8)]" />
+    </motion.div>
   );
 };
 
@@ -117,41 +130,41 @@ export default function BehaviorGraph({ runId }: { runId: string | null }) {
                   line: n.line,
                   ...theme
                 },
-            };
-          });
+              };
+            });
 
-          const rawEdges = data.edges.map((e: any, i: number) => ({
-            id: `e-${i}`,
-            source: e.source,
-            target: e.target,
-            animated: e.kind === 'calls' || e.kind === 'controls',
-            label: e.kind,
-            type: 'smoothstep',
-            style: { 
-              stroke: e.kind === 'controls' ? '#ef4444' : '#4b5563', 
-              strokeWidth: 2,
-              filter: e.kind === 'controls' ? 'drop-shadow(0 0 5px rgba(239,68,68,0.5))' : 'none'
-            },
-            labelStyle: { fill: '#9ca3af', fontWeight: 700, fontSize: 9, letterSpacing: '1px' },
-            labelBgStyle: { fill: '#0a0a0a', fillOpacity: 0.9, rx: 4, ry: 4 },
-            markerEnd: { 
-              type: MarkerType.ArrowClosed, 
-              color: e.kind === 'controls' ? '#ef4444' : '#4b5563' 
-            }
-          }));
+            const rawEdges = data.edges.map((e: any, i: number) => ({
+              id: `e-${i}`,
+              source: e.source,
+              target: e.target,
+              animated: true,
+              label: e.kind,
+              type: 'smoothstep',
+              style: { 
+                stroke: e.kind === 'controls' ? '#ef4444' : (e.kind === 'calls' ? '#3b82f6' : '#10b981'), 
+                strokeWidth: 2,
+                opacity: 0.8,
+                filter: e.kind === 'controls' ? 'drop-shadow(0 0 8px rgba(239,68,68,0.8))' : 'drop-shadow(0 0 5px rgba(59,130,246,0.5))'
+              },
+              labelStyle: { fill: '#ffffff', fontWeight: 800, fontSize: 10, letterSpacing: '1px' },
+              labelBgStyle: { fill: '#000000', fillOpacity: 0.8, rx: 6, ry: 6, stroke: '#333', strokeWidth: 1 },
+              markerEnd: { 
+                type: MarkerType.ArrowClosed, 
+                color: e.kind === 'controls' ? '#ef4444' : (e.kind === 'calls' ? '#3b82f6' : '#10b981')
+              }
+            }));
 
-          const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
-            rawNodes,
-            rawEdges,
-            'TB'
-          );
+            const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+              rawNodes,
+              rawEdges,
+              'TB'
+            );
 
-          setNodes(layoutedNodes);
-          setEdges(layoutedEdges);
-          if (interval) clearInterval(interval);
-        }
-      })
-      .catch(console.error);
+            setNodes(layoutedNodes);
+            setEdges(layoutedEdges);
+          }
+        })
+        .catch(console.error);
     };
 
     fetchGraph();

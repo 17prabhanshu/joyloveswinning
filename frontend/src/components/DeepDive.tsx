@@ -1,30 +1,49 @@
 import { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
-import { Terminal, Code, Cpu, Bot } from 'lucide-react';
+import { Terminal, Code, Bot } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const renderMessage = (text: string) => {
   let cleanText = text.startsWith('[Agent]') ? text.substring(7).trim() : text;
   cleanText = cleanText.startsWith('[Gemini Agent]') ? cleanText.substring(14).trim() : cleanText;
 
-  return cleanText.split('\n').map((line, i) => {
-    if (!line.trim()) return <div key={i} className="h-2"></div>;
+  // Split by triple backticks for code blocks
+  const blocks = cleanText.split(/```/g);
+  
+  return blocks.map((block, i) => {
+    // Every odd index is a code block
+    if (i % 2 !== 0) {
+      // Extract language if present
+      const lines = block.split('\n');
+      const lang = lines[0].trim();
+      const code = lines.slice(1).join('\n');
+      return (
+        <div key={i} className="my-3 rounded-md overflow-hidden border border-white/10 bg-[#0a0a0a]">
+          {lang && <div className="px-3 py-1 bg-white/5 text-[10px] uppercase font-bold text-gray-500">{lang}</div>}
+          <pre className="p-3 text-xs font-mono text-cyan-300 overflow-x-auto"><code>{code || block}</code></pre>
+        </div>
+      );
+    }
     
-    const parts = line.split(/(\*\*.*?\*\*|`.*?`)/g);
-    return (
-      <p key={i} className="mb-1.5 leading-relaxed">
-        {parts.map((part, j) => {
-          if (part.startsWith('**') && part.endsWith('**')) {
-            return <strong key={j} className="text-white font-semibold">{part.slice(2, -2)}</strong>;
-          }
-          if (part.startsWith('`') && part.endsWith('`')) {
-            return <code key={j} className="bg-black/30 border border-white/10 text-cyan-400 px-1.5 py-0.5 rounded font-mono text-xs">{part.slice(1, -1)}</code>;
-          }
-          // Process *italic* if needed, but we'll stick to bold for now
-          return <span key={j}>{part}</span>;
-        })}
-      </p>
-    );
+    // Regular text blocks
+    return block.split('\n').map((line, j) => {
+      if (!line.trim()) return <div key={`${i}-${j}`} className="h-2"></div>;
+      
+      const parts = line.split(/(\*\*.*?\*\*|`.*?`)/g);
+      return (
+        <p key={`${i}-${j}`} className="mb-1.5 leading-relaxed text-[13px]">
+          {parts.map((part, k) => {
+            if (part.startsWith('**') && part.endsWith('**')) {
+              return <strong key={k} className="text-white font-semibold">{part.slice(2, -2)}</strong>;
+            }
+            if (part.startsWith('`') && part.endsWith('`')) {
+              return <code key={k} className="bg-black/30 border border-white/10 text-cyan-400 px-1.5 py-0.5 rounded font-mono text-xs">{part.slice(1, -1)}</code>;
+            }
+            return <span key={k}>{part}</span>;
+          })}
+        </p>
+      );
+    });
   });
 };
 
@@ -32,7 +51,7 @@ export default function DeepDive({ runId }: { runId: string | null }) {
   const [files, setFiles] = useState<Record<string, string>>({});
   const [activeFile, setActiveFile] = useState<string>('');
   const [chatLog, setChatLog] = useState<{ role: 'user' | 'agent', content: string }[]>([
-    { role: 'agent', content: 'Agent connected. Ask me anything about the firmware logic, vulnerabilities, or my test decisions.' }
+    { role: 'agent', content: 'Agent connected. Ask me anything about the firmware logic, security vulnerabilities, or my fuzzing decisions.' }
   ]);
   const [input, setInput] = useState('');
 
@@ -127,12 +146,20 @@ export default function DeepDive({ runId }: { runId: string | null }) {
       <motion.div 
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
-        className="w-[550px] flex flex-col gap-4"
+        className="w-[600px] flex flex-col gap-4"
       >
-        <div className="flex-1 bg-agent-800 border border-agent-700 rounded-lg flex flex-col overflow-hidden">
-          <div className="p-3 border-b border-agent-700 bg-agent-900 flex items-center gap-2">
-            <Cpu size={16} className="text-agent-accent" />
-            <span className="font-semibold text-sm">Agent "Grill Me" Chat</span>
+        <div className="flex-1 bg-black/40 border border-white/5 rounded-xl flex flex-col overflow-hidden shadow-2xl backdrop-blur-md">
+          <div className="p-4 border-b border-white/5 bg-gradient-to-r from-blue-900/20 to-transparent flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
+              </div>
+              <span className="font-bold text-sm tracking-widest text-cyan-50 uppercase">JOY AI Copilot</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-[10px] uppercase font-bold text-gray-500 bg-white/5 px-2 py-1 rounded-sm border border-white/5">Qwen 2.5 / Gemini 1.5</span>
+            </div>
           </div>
           
           <div className="flex-1 p-4 overflow-y-auto space-y-4 scrollbar-custom">

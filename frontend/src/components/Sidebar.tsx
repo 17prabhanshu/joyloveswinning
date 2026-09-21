@@ -11,7 +11,7 @@ interface SidebarProps {
 const TABS = [
   { name: 'Overview', icon: Activity },
   { name: 'Test Lab', icon: Beaker },
-  { name: 'Deep Dive (Code)', icon: TerminalSquare },
+  { name: 'AI Copilot', icon: TerminalSquare },
   { name: 'Behavior Graph', icon: GitGraph },
   { name: 'Failures', icon: AlertTriangle },
   { name: 'Regressions', icon: GitMerge },

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Code2, BrainCircuit, Wrench, Check, Terminal, Zap } from 'lucide-react';
+import { X, Code2, BrainCircuit, Wrench, Check, Terminal, Zap, Cpu } from 'lucide-react';
 
 let _cachedLabTests: any[] = [];
 
@@ -201,8 +201,17 @@ export default function TestLab({ runId }: { runId: string | null }) {
                 </div>
 
                 <div className="bg-[#0f0f0f] p-6 rounded-xl border border-white/5 shadow-inner border-l-4 border-l-blue-500/50">
-                  <p className="text-xs text-blue-400/70 font-bold uppercase tracking-widest mb-3">AI Agent Hypothesis</p>
-                  <p className="text-gray-300 text-sm leading-relaxed">{selectedTest.reason}</p>
+                  <p className="text-xs text-blue-400/70 font-bold uppercase tracking-widest mb-3">AI Agent Hypothesis (Reason)</p>
+                  <p className="text-gray-300 text-sm leading-relaxed mb-6">{selectedTest.reason}</p>
+                  
+                  <p className="text-xs text-blue-400/70 font-bold uppercase tracking-widest mb-3">Expected Outcome</p>
+                  <p className="text-gray-300 text-sm leading-relaxed mb-6">{selectedTest.expected_outcome}</p>
+                  
+                  <p className="text-xs text-blue-400/70 font-bold uppercase tracking-widest mb-3">Why This Test Exists</p>
+                  <p className="text-gray-300 text-sm leading-relaxed mb-6">{selectedTest.why_this_test_exists}</p>
+
+                  <p className="text-xs text-blue-400/70 font-bold uppercase tracking-widest mb-3">Information Value</p>
+                  <p className="text-gray-300 text-sm leading-relaxed">{selectedTest.information_value}</p>
                 </div>
 
                 {selectedTest.status === 'FAIL' && (
@@ -235,12 +244,15 @@ export default function TestLab({ runId }: { runId: string | null }) {
                         
                         <div className="flex flex-col items-center gap-4 text-center relative z-10">
                           <p className="text-cyan-300 font-mono text-sm tracking-[0.3em] uppercase font-bold bg-cyan-950/80 px-6 py-2 border border-cyan-500/50 shadow-[0_0_20px_rgba(34,211,238,0.2)]">
-                            [ PROCESSING NEURAL PAYLOAD ]
+                            [ SYNTHESIZING REMEDIATION VIA GEMINI ]
                           </p>
-                          <div className="text-cyan-400/80 text-xs font-mono space-y-2 mt-4 text-left border-l-2 border-cyan-500/50 pl-4">
+                          <p className="text-gray-500 font-mono text-[10px] uppercase tracking-widest mt-2">
+                            (This takes ~5-10 seconds as the AI analyzes the C AST)
+                          </p>
+                          <div className="text-cyan-400/80 text-xs font-mono space-y-2 mt-2 text-left border-l-2 border-cyan-500/50 pl-4">
                             <p className="animate-[pulse_1s_infinite] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">$ INJECT_EXECUTION_STATE --verbose</p>
                             <p className="animate-[pulse_1s_infinite_100ms] opacity-80">$ CORRELATE_FAULTS --target=AST_BOUNDARIES</p>
-                            <p className="animate-[pulse_1s_infinite_200ms] opacity-60">$ SYNTHESIZE_REMEDIATION_MATRIX...</p>
+                            <p className="animate-[pulse_1s_infinite_200ms] opacity-60">$ SYNTHESIZING_PATCH...</p>
                           </div>
                         </div>
                       </div>
@@ -300,13 +312,13 @@ export default function TestLab({ runId }: { runId: string | null }) {
                 
                 {/* Simulator UART Output */}
                 {selectedTest.uart && selectedTest.uart.length > 0 && (
-                  <div className="bg-[#0a0a0a] rounded-xl border border-gray-800 overflow-hidden shadow-inner">
+                  <div className="bg-[#0a0a0a] rounded-xl border border-gray-800 overflow-hidden shadow-inner mt-4">
                     <div className="bg-gray-900/50 px-4 py-2 border-b border-gray-800 flex justify-between items-center">
                       <p className="text-xs text-gray-500 font-bold uppercase tracking-widest flex items-center gap-2">
                         <Terminal size={14} />
                         Simulator Terminal Log
                       </p>
-                      <span className="text-[10px] text-gray-600 font-mono bg-black px-2 py-0.5 rounded">WOKWI EMULATOR</span>
+                      <span className="text-[10px] text-gray-600 font-mono bg-black px-2 py-0.5 rounded">{selectedTest.simulator.toUpperCase()}</span>
                     </div>
                     <div className="p-4 bg-black overflow-x-auto max-h-64 scrollbar-custom font-mono text-xs leading-relaxed">
                       {selectedTest.uart.map((line: string, i: number) => (
@@ -315,6 +327,27 @@ export default function TestLab({ runId }: { runId: string | null }) {
                           <span className={line.includes('ERROR') || line.includes('FAIL') ? 'text-red-400' : line.includes('BOOT') ? 'text-green-400 font-bold' : 'text-gray-300'}>
                             {line}
                           </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* LabWired CPU Registers */}
+                {selectedTest.registers && Object.keys(selectedTest.registers).length > 0 && (
+                  <div className="bg-[#0a0a0a] rounded-xl border border-gray-800 overflow-hidden shadow-inner mt-4">
+                    <div className="bg-gray-900/50 px-4 py-2 border-b border-gray-800 flex justify-between items-center">
+                      <p className="text-xs text-blue-500 font-bold uppercase tracking-widest flex items-center gap-2">
+                        <Cpu size={14} />
+                        CPU State & Registers
+                      </p>
+                      <span className="text-[10px] text-blue-400/80 font-mono bg-blue-900/20 border border-blue-900/50 px-2 py-0.5 rounded shadow-[0_0_10px_rgba(59,130,246,0.2)]">LABWIRED ENGINE</span>
+                    </div>
+                    <div className="p-4 bg-black grid grid-cols-4 gap-2 font-mono text-xs">
+                      {Object.entries(selectedTest.registers).map(([reg, val]) => (
+                        <div key={reg} className="bg-white/5 border border-white/10 rounded px-2 py-1.5 flex flex-col items-center justify-center group hover:bg-blue-900/20 hover:border-blue-500/30 transition-colors">
+                          <span className="text-gray-500 text-[9px] mb-0.5 group-hover:text-blue-400">{reg}</span>
+                          <span className="text-gray-300 font-bold">{val as string}</span>
                         </div>
                       ))}
                     </div>

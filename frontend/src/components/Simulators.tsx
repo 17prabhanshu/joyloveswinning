@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Cpu, CheckCircle, XCircle } from 'lucide-react';
 
-export default function Simulators({}: { runId: string | null }) {
+export default function Simulators({ runId }: { runId: string | null }) {
   const [simulators, setSimulators] = useState<any[]>([]);
 
   useEffect(() => {
@@ -44,11 +44,22 @@ export default function Simulators({}: { runId: string | null }) {
               </div>
             </div>
             
-            <div className="bg-[#111] rounded-lg p-4 font-mono text-sm text-gray-400 border border-white/5">
+            <div className="bg-[#111] rounded-lg p-4 font-mono text-sm text-gray-400 border border-white/5 mb-4">
               <p><span className="text-gray-600">Backend:</span> {sim.backend}</p>
               <p><span className="text-gray-600">Adapter Loaded:</span> YES</p>
               <p><span className="text-gray-600">Health Check:</span> {sim.available ? 'PASSED' : 'FAILED - Binary not in PATH'}</p>
             </div>
+            
+            <button 
+              onClick={() => fetch(`/api/simulators/${sim.name}/launch`, { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ run_id: runId })
+              })}
+              className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold font-mono tracking-widest uppercase rounded-lg transition-colors border border-blue-400/50 shadow-[0_0_15px_rgba(37,99,235,0.3)]"
+            >
+              &gt;_ Launch Interactive Shell
+            </button>
           </motion.div>
         ))}
       </div>
