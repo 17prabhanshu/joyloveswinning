@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Code2, BrainCircuit, Wrench, Check, Terminal, Zap } from 'lucide-react';
 
+let _cachedLabTests: any[] = [];
+
 export default function TestLab({ runId }: { runId: string | null }) {
-  const [tests, setTests] = useState<any[]>([]);
+  const [tests, setTests] = useState<any[]>(_cachedLabTests);
   const [selectedTest, setSelectedTest] = useState<any | null>(null);
   const [analysis, setAnalysis] = useState<any | null>(null);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
@@ -18,6 +20,7 @@ export default function TestLab({ runId }: { runId: string | null }) {
         .then(res => res.json())
         .then(data => {
           if (data.tests && Array.isArray(data.tests)) {
+            _cachedLabTests = data.tests;
             setTests(data.tests);
           }
         })

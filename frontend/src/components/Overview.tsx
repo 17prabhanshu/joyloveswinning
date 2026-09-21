@@ -2,11 +2,16 @@ import { useState, useEffect } from 'react';
 import { Activity, ShieldAlert, CheckCircle, XCircle, Zap, FileText, Clock, Cpu } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+let _cachedEvents: any[] = [];
+let _cachedOverviewTests: any[] = [];
+let _cachedMetrics = { total: 0, passed: 0, failed: 0, risks: 0 };
+let _cachedRunStatus = 'running';
+
 export default function Overview({ runId }: { runId: string | null }) {
-  const [events, setEvents] = useState<any[]>([]);
-  const [tests, setTests] = useState<any[]>([]);
-  const [metrics, setMetrics] = useState({ total: 0, passed: 0, failed: 0, risks: 0 });
-  const [runStatus, setRunStatus] = useState<string>('running');
+  const [events, setEvents] = useState<any[]>(_cachedEvents);
+  const [tests, setTests] = useState<any[]>(_cachedOverviewTests);
+  const [metrics, setMetrics] = useState(_cachedMetrics);
+  const [runStatus, setRunStatus] = useState<string>(_cachedRunStatus);
 
   useEffect(() => {
     if (!runId) return;
@@ -18,7 +23,10 @@ export default function Overview({ runId }: { runId: string | null }) {
           if (data.tests && Array.isArray(data.tests)) {
             const passed = data.tests.filter((t: any) => t.status === 'PASS').length;
             const failed = data.tests.filter((t: any) => t.status === 'FAIL').length;
-            setMetrics(m => ({ ...m, total: data.tests.length, passed, failed }));
+            const newMetrics = { total: data.tests.length, passed, failed, risks: _cachedMetrics.risks };
+            _cachedMetrics = newMetrics;
+            _cachedOverviewTests = data.tests;
+            setMetrics(newMetrics);
             setTests(data.tests);
           }
         }).catch(console.error);
@@ -27,21 +35,26 @@ export default function Overview({ runId }: { runId: string | null }) {
         .then(res => res.json())
         .then(data => {
           if (data.risks && Array.isArray(data.risks)) {
-            setMetrics(m => ({ ...m, risks: data.risks.length }));
+            _cachedMetrics = { ..._cachedMetrics, risks: data.risks.length };
+            setMetrics(_cachedMetrics);
           }
         }).catch(console.error);
 
       fetch(`/api/runs/${runId}`)
         .then(res => res.json())
         .then(data => {
-          if (data.status) setRunStatus(data.status);
+          if (data.status) {
+            _cachedRunStatus = data.status;
+            setRunStatus(data.status);
+          }
         }).catch(console.error);
 
       fetch(`/api/runs/${runId}/events`)
         .then(res => res.json())
         .then(data => {
           if (data.events && Array.isArray(data.events)) {
-            setEvents(data.events.slice(0, 50).reverse());
+            _cachedEvents = data.events.slice(0, 50).reverse();
+            setEvents(_cachedEvents);
           }
         }).catch(console.error);
     };
@@ -109,7 +122,7 @@ export default function Overview({ runId }: { runId: string | null }) {
               {events.map((ev, i) => (
                 <motion.div
                   key={`${ev.timestamp}-${i}`}
-                  initial={{ opacity: 0, height: 0 }}
+                  initial={false}
                   animate={{ opacity: 1, height: 'auto' }}
                   transition={{ duration: 0.2 }}
                 >
@@ -149,9 +162,9 @@ export default function Overview({ runId }: { runId: string | null }) {
               {tests.map((test: any, i: number) => (
                 <motion.div
                   key={test.test_id}
-                  initial={{ opacity: 0, x: 20 }}
+                  initial={false}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: i * 0.03 }}
+                  transition={{ duration: 0.3 }}
                   className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-white/[0.02] transition-colors"
                 >
                   <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
