@@ -36,24 +36,21 @@ export default function Overview({ runId }: { runId: string | null }) {
         .then(data => {
           if (data.status) setRunStatus(data.status);
         }).catch(console.error);
+
+      fetch(`/api/runs/${runId}/events`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.events && Array.isArray(data.events)) {
+            setEvents(data.events.slice(0, 50).reverse());
+          }
+        }).catch(console.error);
     };
 
     fetchData();
     const interval = setInterval(fetchData, 1500);
 
-    const eventSource = new EventSource(`/api/runs/${runId}/events`);
-    eventSource.onmessage = (e) => {
-      try {
-        const eventData = JSON.parse(e.data);
-        setEvents(prev => [eventData, ...prev].slice(0, 50));
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
     return () => {
       clearInterval(interval);
-      eventSource.close();
     };
   }, [runId]);
 
